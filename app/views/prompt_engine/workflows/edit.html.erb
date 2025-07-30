@@ -1,0 +1,19 @@
+<div class="admin-header">
+  <h1>Edit Workflow</h1>
+  <div class="admin-header__actions">
+    <%= link_to "View", workflow_path(@workflow), class: "btn btn--neutral btn--medium" %>
+    <%= link_to "Back to Workflows", workflows_path, class: "btn btn--neutral btn--medium" %>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card__header">
+    <h2>Edit "<%= @workflow.name %>"</h2>
+    <div class="text-sm text-muted">
+      Modify the workflow steps and configuration.
+    </div>
+  </div>
+  <div class="card__body">
+    <%= render 'form', workflow: @workflow %>
+  </div>
+</div>

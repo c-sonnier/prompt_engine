@@ -1,0 +1,182 @@
+<div class="admin-header">
+  <div>
+    <h1>Test Workflow: <%= @workflow.name %></h1>
+    <p class="text-muted">Execute your workflow with real AI providers</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card__header">
+    <h3 class="card__title">Workflow Steps</h3>
+  </div>
+  <div class="card__body">
+    <div class="workflow-steps-preview">
+      <% @workflow.steps.keys.sort.each_with_index do |step_key, index| %>
+        <% prompt_slug = @workflow.steps[step_key] %>
+        <div class="workflow-step-preview">
+          <div class="workflow-step-preview__number"><%= index + 1 %></div>
+          <div class="workflow-step-preview__content">
+            <strong><%= prompt_slug %></strong>
+            <% if prompt = PromptEngine::Prompt.find_by(slug: prompt_slug) %>
+              <div class="text-muted text-sm"><%= prompt.name %></div>
+            <% else %>
+              <div class="text-danger text-sm">⚠️ Prompt not found</div>
+            <% end %>
+          </div>
+        </div>
+        <% unless index == @workflow.steps.size - 1 %>
+          <div class="workflow-step-arrow">↓</div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card__header">
+    <h3 class="card__title">Playground Settings</h3>
+  </div>
+  <div class="card__body">
+    <%= form_with url: playground_workflow_path(@workflow), method: :post, local: true, html: { class: "form", multipart: true } do |form| %>
+      <div class="form__group">
+        <%= form.label :provider, "AI Provider", class: "form__label form__label--required" %>
+        <%= form.select :provider,
+            options_for_select([
+              ["Anthropic (claude-3-5-sonnet-20241022)", "anthropic"],
+              ["OpenAI (gpt-4o)", "openai"]
+            ]),
+            { prompt: "Select a provider" },
+            class: "form__select", required: true %>
+        <div class="form__help">Select which AI provider to test with</div>
+      </div>
+
+      <div class="form__group">
+        <%= form.label :api_key, "API Key", class: "form__label form__label--required" %>
+        <% 
+          # Get the appropriate API key from settings
+          default_api_key = nil
+          api_key_configured = false
+          
+          if @settings.anthropic_configured?
+            default_api_key = @settings.anthropic_api_key
+            api_key_configured = true
+          elsif @settings.openai_configured?
+            default_api_key = @settings.openai_api_key
+            api_key_configured = true
+          end
+        %>
+        <%= form.password_field :api_key, 
+            class: "form__input", 
+            required: true,
+            value: default_api_key,
+            placeholder: "sk-..." %>
+        <div class="form__help">
+          <% if api_key_configured %>
+            Using API key from settings. You can override it here if needed.
+          <% else %>
+            Enter your API key. Configure it in 
+            <%= link_to "Settings", edit_settings_path, class: "link" %> 
+            to avoid entering it each time.
+          <% end %>
+        </div>
+      </div>
+
+      <% if @needs_text_input %>
+        <div class="form__group">
+          <%= form.label :initial_input, "Initial Input", class: "form__label" %>
+          <%= form.text_area "parameters[initial_input]", 
+              class: "form__textarea", 
+              rows: 4,
+              placeholder: "Enter the initial input for the first step of your workflow..." %>
+          <div class="form__help">This will be passed as the 'input' variable to the first prompt in your workflow</div>
+        </div>
+      <% end %>
+
+      <% if @parameters.present? %>
+        <div class="form__group">
+          <label class="form__label">First Step Parameters</label>
+          <div class="form__help">These parameters are required by the first prompt in your workflow</div>
+          
+          <% @parameters.each do |param_name| %>
+            <% parameter = @first_prompt&.parameters&.find_by(name: param_name) %>
+            <div class="form__subgroup">
+              <%= label_tag "parameters[#{param_name}]", param_name.humanize, class: "form__sublabel" %>
+              <% if parameter&.parameter_type == 'file' %>
+                <%= form.file_field "files[]", 
+                    class: "form__file-input",
+                    accept: ".pdf,.jpg,.jpeg,.png,.gif,.webp",
+                    multiple: false %>
+                <div class="form__help text-sm">Upload a file (PDF, JPG, PNG, GIF, WebP)</div>
+              <% else %>
+                <%= text_field_tag "parameters[#{param_name}]", "", 
+                    class: "form__input", 
+                    placeholder: "Enter value for #{param_name}..." %>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <div class="form__actions">
+        <%= form.submit "Execute Workflow", class: "btn btn--primary btn--large" %>
+        <%= link_to "Back to Workflow", workflow_path(@workflow), class: "btn btn--neutral btn--medium" %>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<style>
+.workflow-steps-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workflow-step-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--color-surface-light);
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+}
+
+.workflow-step-preview__number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: var(--color-primary);
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.workflow-step-preview__content {
+  flex: 1;
+}
+
+.workflow-step-arrow {
+  display: flex;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  margin: 4px 0;
+}
+
+.form__subgroup {
+  margin-bottom: 12px;
+}
+
+.form__sublabel {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+</style>

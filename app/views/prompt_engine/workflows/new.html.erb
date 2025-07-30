@@ -1,0 +1,16 @@
+<div class="admin-header">
+  <h1>New Workflow</h1>
+  <%= link_to "Back to Workflows", workflows_path, class: "btn btn--neutral btn--medium" %>
+</div>
+
+<div class="card">
+  <div class="card__header">
+    <h2>Create Workflow</h2>
+    <div class="text-sm text-muted">
+      Workflows allow you to chain prompts together. The output of each step becomes the input for the next step.
+    </div>
+  </div>
+  <div class="card__body">
+    <%= render 'form', workflow: @workflow %>
+  </div>
+</div>
