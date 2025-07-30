@@ -47,11 +47,11 @@ namespace :prompt_engine do
 
       # Ensure proper asset configuration for compilation
       puts "Configuring assets for compilation..."
-      
+
       # Precompile assets with debug off to ensure concatenation
       puts "Precompiling assets..."
       success = system("RAILS_ENV=production bundle exec rails assets:precompile")
-      
+
       unless success
         puts "❌ Asset precompilation failed"
         exit 1
@@ -75,22 +75,22 @@ namespace :prompt_engine do
       if compiled_file && File.exist?(compiled_file)
         target_file = File.join(builds_dir, "application.css")
         FileUtils.cp(compiled_file, target_file)
-        
+
         # Verify the content is properly concatenated
         content = File.read(target_file)
-        
+
         if content.include?("*= require") || content.size < 10000
           puts "⚠ WARNING: Compiled CSS contains Sprockets directives or is too small"
           puts "This suggests the asset pipeline isn't concatenating files properly"
           puts "File size: #{content.size} bytes"
-          
+
           # Try to manually concatenate if needed
           puts "Attempting manual concatenation..."
           manual_concatenate_css(builds_dir)
         else
           file_size = File.size(target_file)
           puts "✓ Copied compiled CSS to app/assets/builds/ (#{file_size} bytes)"
-          
+
           # Show preview
           puts "Content preview (first 200 chars):"
           puts content[0..200]
@@ -135,7 +135,7 @@ namespace :prompt_engine do
     ]
 
     concatenated_css = "/* PromptEngine - Concatenated CSS */\n\n"
-    
+
     # Add CSS variables first
     concatenated_css += <<~CSS
       :root {
@@ -157,7 +157,7 @@ namespace :prompt_engine do
       if File.exist?(full_path)
         content = File.read(full_path)
         # Remove any @import statements
-        content = content.gsub(/@import.*?;/, '')
+        content = content.gsub(/@import.*?;/, "")
         concatenated_css += "/* #{File.basename(file_path)} */\n"
         concatenated_css += content + "\n\n"
         puts "  Added #{File.basename(file_path)}"
