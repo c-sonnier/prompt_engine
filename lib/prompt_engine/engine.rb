@@ -16,10 +16,23 @@ module PromptEngine
     # This is the standard Rails engine pattern
     # Skip this for the dummy app to avoid duplicate migrations
     initializer :append_migrations do |app|
-      unless app.root.to_s.match?(root.to_s) || app.root.to_s.include?('spec/dummy')
+      unless app.root.to_s.match?(root.to_s) || app.root.to_s.include?("spec/dummy")
         config.paths["db/migrate"].expanded.each do |expanded_path|
           app.config.paths["db/migrate"] << expanded_path
         end
+      end
+    end
+
+    # Configure asset pipeline
+    initializer "prompt_engine.assets" do |app|
+      # In production, look for precompiled assets first
+      if Rails.env.production? && File.exist?(root.join("app/assets/builds/application.css"))
+        app.config.assets.precompile += %w[prompt_engine/application.css]
+        # Add the builds directory to asset paths
+        app.config.assets.paths << root.join("app/assets/builds")
+      else
+        # In development, use the source files
+        app.config.assets.precompile += %w[prompt_engine/application.css]
       end
     end
 

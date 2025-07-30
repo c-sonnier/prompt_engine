@@ -8,3 +8,6 @@ Rails.application.config.assets.version = "1.0"
 
 # Include engine assets
 Rails.application.config.assets.precompile += %w[prompt_engine/application.css]
+
+# Ensure engine asset paths are included
+Rails.application.config.assets.paths << PromptEngine::Engine.root.join("app/assets/stylesheets")
