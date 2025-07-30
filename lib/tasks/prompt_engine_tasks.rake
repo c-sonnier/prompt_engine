@@ -43,7 +43,7 @@ namespace :prompt_engine do
 
     Dir.chdir(dummy_dir) do
       # Precompile just the engine's assets
-      system("bundle exec rails assets:precompile RAILS_ENV=production")
+      system("bundle exec rails assets:precompile")
 
       # Copy the compiled engine assets to the builds directory
       compiled_css = "public/assets/prompt_engine/application-*.css"
