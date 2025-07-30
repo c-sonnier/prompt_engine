@@ -23,16 +23,17 @@ module PromptEngine
       end
     end
 
-    # Configure asset pipeline
+    # Configure assets for both Sprockets and Propshaft
     initializer "prompt_engine.assets" do |app|
-      # In production, look for precompiled assets first
-      if Rails.env.production? && File.exist?(root.join("app/assets/builds/application.css"))
+      # For Sprockets (traditional asset pipeline)
+      if defined?(Sprockets)
         app.config.assets.precompile += %w[prompt_engine/application.css]
-        # Add the builds directory to asset paths
-        app.config.assets.paths << root.join("app/assets/builds")
-      else
-        # In development, use the source files
-        app.config.assets.precompile += %w[prompt_engine/application.css]
+        app.config.assets.paths << root.join("app/assets/stylesheets")
+      end
+
+      # For Propshaft (Rails 7+ default)
+      if defined?(Propshaft)
+        app.config.assets.paths << root.join("app/assets/stylesheets")
       end
     end
 

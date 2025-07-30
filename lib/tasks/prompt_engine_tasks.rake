@@ -30,7 +30,7 @@ namespace :prompt_engine do
     end
   end
 
-  desc "Build assets for gem packaging"
+ desc "Build assets for gem packaging"
   task :build_assets do
     puts "Building PromptEngine assets..."
 
@@ -42,21 +42,64 @@ namespace :prompt_engine do
     dummy_dir = File.expand_path("../../spec/dummy", __dir__)
 
     Dir.chdir(dummy_dir) do
-      # Precompile just the engine's assets
-      system("bundle exec rails assets:precompile")
+      # Clean first
+      system("bundle exec rails assets:clobber") if File.exist?("tmp")
 
-      # Copy the compiled engine assets to the builds directory
-      compiled_css = "public/assets/prompt_engine/application-*.css"
-      if Dir.glob(compiled_css).any?
-        latest_css = Dir.glob(compiled_css).max_by { |f| File.mtime(f) }
-        FileUtils.cp(latest_css, File.join(builds_dir, "application.css"))
-        puts "✓ Copied compiled CSS to app/assets/builds/"
+      # Detect which asset pipeline is being used
+      using_propshaft = system("bundle exec rails runner 'puts defined?(Propshaft) ? \"propshaft\" : \"sprockets\"'") rescue false
+
+      puts "Detected asset pipeline: #{using_propshaft ? 'Propshaft' : 'Sprockets'}"
+
+      # Precompile assets
+      puts "Precompiling assets..."
+      success = system("bundle exec rails assets:precompile")
+
+      unless success
+        puts "❌ Asset precompilation failed"
+        exit 1
+      end
+
+      # Find compiled CSS - try multiple patterns
+      compiled_patterns = [
+        "public/assets/prompt_engine/application-*.css",
+        "public/assets/prompt_engine/application.css",
+        "public/assets/**/prompt_engine*application*.css"
+      ]
+
+      compiled_file = nil
+      compiled_patterns.each do |pattern|
+        files = Dir.glob(pattern)
+        if files.any?
+          compiled_file = files.max_by { |f| File.mtime(f) }
+          break
+        end
+      end
+
+      if compiled_file && File.exist?(compiled_file)
+        target_file = File.join(builds_dir, "application.css")
+        FileUtils.cp(compiled_file, target_file)
+
+        file_size = File.size(target_file)
+        if file_size > 100
+          puts "✓ Copied compiled CSS to app/assets/builds/ (#{file_size} bytes)"
+
+          # Show preview to verify content
+          content_preview = File.read(target_file, 200)
+          puts "Preview: #{content_preview[0..100]}..."
+        else
+          puts "⚠ Compiled CSS file seems too small (#{file_size} bytes)"
+        end
       else
-        puts "⚠ No compiled CSS found at #{compiled_css}"
+        puts "❌ No compiled CSS found"
+        puts "Searching in public/assets:"
+        Dir.glob("public/assets/**/*").select { |f| File.file?(f) }.each do |f|
+          puts "  #{f} (#{File.size(f)} bytes)"
+        end
+        exit 1
       end
 
       # Clean up
-      system("bundle exec rails assets:clobber")
+      system("bundle exec rails assets:clobber") if File.exist?("tmp")
     end
 
     puts "✅ Asset build complete"
