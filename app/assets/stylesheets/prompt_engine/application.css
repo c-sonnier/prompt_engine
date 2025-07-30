@@ -1,23 +1,37 @@
 /* PromptEngine Admin Styles
  * 
- * Import all component styles in the correct order
+ * Require all component styles in the correct order
+ *
+ *= require prompt_engine/foundation
+ *= require prompt_engine/layout
+ *= require prompt_engine/sidebar
+ *= require prompt_engine/buttons
+ *= require prompt_engine/forms
+ *= require prompt_engine/tables
+ *= require prompt_engine/cards
+ *= require prompt_engine/dashboard
+ *= require prompt_engine/prompts
+ *= require prompt_engine/versions
+ *= require prompt_engine/notifications
+ *= require prompt_engine/loading
+ *= require prompt_engine/comparison
+ *= require prompt_engine/evaluations
+ *= require prompt_engine/workflows
+ *= require prompt_engine/utilities
+ *= require prompt_engine/overrides
+ *= require prompt_engine/components/_test_runs
+ *= require_self
  */
 
-@import url("foundation.css");
-@import url("layout.css");
-@import url("sidebar.css");
-@import url("buttons.css");
-@import url("forms.css");
-@import url("tables.css");
-@import url("cards.css");
-@import url("dashboard.css");
-@import url("prompts.css");
-@import url("versions.css");
-@import url("notifications.css");
-@import url("loading.css");
-@import url("comparison.css");
-@import url("evaluations.css");
-@import url("workflows.css");
-@import url("utilities.css");
-@import url("overrides.css");
-@import url("components/_test_runs.css");
+/* Engine-specific base styles and CSS variables */
+:root {
+  --color-primary: #3b82f6;
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-400: #9ca3af;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-900: #111827;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Inconsolata, "Liberation Mono", "Consolas", monospace;
+}

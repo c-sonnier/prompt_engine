@@ -10,6 +10,9 @@ require "bundler/gem_tasks"
 require "rspec/core"
 require "rspec/core/rake_task"
 
+# Load engine-specific tasks
+Dir[File.join(__dir__, 'lib', 'tasks', '*.rake')].each { |f| load f }
+
 desc "Run all specs in spec directory"
 RSpec::Core::RakeTask.new(:spec) do |t|
   t.pattern = "spec/**{,/*/**}/*_spec.rb"

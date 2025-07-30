@@ -42,28 +42,25 @@ namespace :prompt_engine do
     dummy_dir = File.expand_path("../../spec/dummy", __dir__)
 
     Dir.chdir(dummy_dir) do
-      # Clean first
-      system("bundle exec rails assets:clobber") if File.exist?("tmp")
+      # Clean first to ensure fresh build
+      system("bundle exec rails assets:clobber") if Dir.exist?("tmp")
 
-      # Detect which asset pipeline is being used
-      using_propshaft = system("bundle exec rails runner 'puts defined?(Propshaft) ? \"propshaft\" : \"sprockets\"'") rescue false
-
-      puts "Detected asset pipeline: #{using_propshaft ? 'Propshaft' : 'Sprockets'}"
-
-      # Precompile assets
+      # Ensure proper asset configuration for compilation
+      puts "Configuring assets for compilation..."
+      
+      # Precompile assets with debug off to ensure concatenation
       puts "Precompiling assets..."
-      success = system("bundle exec rails assets:precompile")
-
+      success = system("RAILS_ENV=production bundle exec rails assets:precompile")
+      
       unless success
         puts "❌ Asset precompilation failed"
         exit 1
       end
 
-      # Find compiled CSS - try multiple patterns
+      # Find compiled CSS
       compiled_patterns = [
         "public/assets/prompt_engine/application-*.css",
-        "public/assets/prompt_engine/application.css",
-        "public/assets/**/prompt_engine*application*.css"
+        "public/assets/prompt_engine/application.css"
       ]
 
       compiled_file = nil
@@ -78,30 +75,99 @@ namespace :prompt_engine do
       if compiled_file && File.exist?(compiled_file)
         target_file = File.join(builds_dir, "application.css")
         FileUtils.cp(compiled_file, target_file)
-
-        file_size = File.size(target_file)
-        if file_size > 100
-          puts "✓ Copied compiled CSS to app/assets/builds/ (#{file_size} bytes)"
-
-          # Show preview to verify content
-          content_preview = File.read(target_file, 200)
-          puts "Preview: #{content_preview[0..100]}..."
+        
+        # Verify the content is properly concatenated
+        content = File.read(target_file)
+        
+        if content.include?("*= require") || content.size < 10000
+          puts "⚠ WARNING: Compiled CSS contains Sprockets directives or is too small"
+          puts "This suggests the asset pipeline isn't concatenating files properly"
+          puts "File size: #{content.size} bytes"
+          
+          # Try to manually concatenate if needed
+          puts "Attempting manual concatenation..."
+          manual_concatenate_css(builds_dir)
         else
-          puts "⚠ Compiled CSS file seems too small (#{file_size} bytes)"
+          file_size = File.size(target_file)
+          puts "✓ Copied compiled CSS to app/assets/builds/ (#{file_size} bytes)"
+          
+          # Show preview
+          puts "Content preview (first 200 chars):"
+          puts content[0..200]
         end
       else
         puts "❌ No compiled CSS found"
-        puts "Searching in public/assets:"
-        Dir.glob("public/assets/**/*").select { |f| File.file?(f) }.each do |f|
-          puts "  #{f} (#{File.size(f)} bytes)"
-        end
+        puts "Available files in public/assets:"
+        Dir.glob("public/assets/**/*.css").each { |f| puts "  #{f}" }
         exit 1
       end
 
       # Clean up
-      system("bundle exec rails assets:clobber") if File.exist?("tmp")
+      system("bundle exec rails assets:clobber") if Dir.exist?("tmp")
     end
 
     puts "✅ Asset build complete"
+  end
+
+  private
+
+  def self.manual_concatenate_css(builds_dir)
+    engine_root = File.expand_path("../..", __dir__)
+    css_files = [
+      "app/assets/stylesheets/prompt_engine/foundation.css",
+      "app/assets/stylesheets/prompt_engine/layout.css",
+      "app/assets/stylesheets/prompt_engine/sidebar.css",
+      "app/assets/stylesheets/prompt_engine/buttons.css",
+      "app/assets/stylesheets/prompt_engine/forms.css",
+      "app/assets/stylesheets/prompt_engine/tables.css",
+      "app/assets/stylesheets/prompt_engine/cards.css",
+      "app/assets/stylesheets/prompt_engine/dashboard.css",
+      "app/assets/stylesheets/prompt_engine/prompts.css",
+      "app/assets/stylesheets/prompt_engine/versions.css",
+      "app/assets/stylesheets/prompt_engine/notifications.css",
+      "app/assets/stylesheets/prompt_engine/loading.css",
+      "app/assets/stylesheets/prompt_engine/comparison.css",
+      "app/assets/stylesheets/prompt_engine/evaluations.css",
+      "app/assets/stylesheets/prompt_engine/workflows.css",
+      "app/assets/stylesheets/prompt_engine/utilities.css",
+      "app/assets/stylesheets/prompt_engine/overrides.css",
+      "app/assets/stylesheets/prompt_engine/components/_test_runs.css"
+    ]
+
+    concatenated_css = "/* PromptEngine - Concatenated CSS */\n\n"
+    
+    # Add CSS variables first
+    concatenated_css += <<~CSS
+      :root {
+        --color-primary: #3b82f6;
+        --color-gray-50: #f9fafb;
+        --color-gray-100: #f3f4f6;
+        --color-gray-200: #e5e7eb;
+        --color-gray-400: #9ca3af;
+        --color-gray-600: #4b5563;
+        --color-gray-700: #374151;
+        --color-gray-900: #111827;
+        --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Inconsolata, "Liberation Mono", "Consolas", monospace;
+      }
+
+    CSS
+
+    css_files.each do |file_path|
+      full_path = File.join(engine_root, file_path)
+      if File.exist?(full_path)
+        content = File.read(full_path)
+        # Remove any @import statements
+        content = content.gsub(/@import.*?;/, '')
+        concatenated_css += "/* #{File.basename(file_path)} */\n"
+        concatenated_css += content + "\n\n"
+        puts "  Added #{File.basename(file_path)}"
+      else
+        puts "  Warning: #{file_path} not found"
+      end
+    end
+
+    target_file = File.join(builds_dir, "application.css")
+    File.write(target_file, concatenated_css)
+    puts "✓ Manual concatenation complete (#{File.size(target_file)} bytes)"
   end
 end
