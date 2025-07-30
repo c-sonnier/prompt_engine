@@ -1,0 +1,184 @@
+<%= form_with(model: workflow, local: true, html: { class: "form" }) do |form| %>
+  <% if workflow.errors.any? %>
+    <div class="form__errors">
+      <h3 class="text-danger">Please fix the following errors:</h3>
+      <ul>
+        <% workflow.errors.full_messages.each do |message| %>
+          <li class="text-danger text-sm"><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="form__group">
+    <%= form.label :name, class: "form__label form__label--required" %>
+    <%= form.text_field :name, class: "form__input", required: true, 
+        placeholder: "e.g., Customer Support Workflow" %>
+    <div class="form__help">A descriptive name for this workflow</div>
+  </div>
+
+  <div class="form__group">
+    <label class="form__label form__label--required">Workflow Steps</label>
+    <div class="form__help">
+      Define the sequence of prompts that will be executed. Each step's output becomes the input for the next step.
+    </div>
+    
+    <div id="workflow-steps-container" data-controller="workflow-steps">
+      <% if workflow.steps.present? %>
+        <% workflow.steps.sort.each_with_index do |(step_key, prompt_slug), index| %>
+          <div class="workflow-step-input" data-workflow-steps-target="step">
+            <div class="workflow-step-input__header">
+              <span class="workflow-step-input__number"><%= index + 1 %></span>
+              <select name="workflow[steps][<%= step_key %>]" class="form__select" required>
+                <option value="">Select a prompt...</option>
+                <% @available_prompts.each do |prompt| %>
+                  <option value="<%= prompt.slug %>" <%= 'selected' if prompt.slug == prompt_slug %>>
+                    <%= prompt.name %> (<%= prompt.slug %>)
+                  </option>
+                <% end %>
+              </select>
+              <button type="button" class="btn btn--danger btn--small" 
+                      data-action="click->workflow-steps#removeStep">
+                Remove
+              </button>
+            </div>
+          </div>
+        <% end %>
+      <% else %>
+        <div class="workflow-step-input" data-workflow-steps-target="step">
+          <div class="workflow-step-input__header">
+            <span class="workflow-step-input__number">1</span>
+            <select name="workflow[steps][1]" class="form__select" required>
+              <option value="">Select a prompt...</option>
+              <% @available_prompts.each do |prompt| %>
+                <option value="<%= prompt.slug %>">
+                  <%= prompt.name %> (<%= prompt.slug %>)
+                </option>
+              <% end %>
+            </select>
+            <button type="button" class="btn btn--danger btn--small" 
+                    data-action="click->workflow-steps#removeStep">
+              Remove
+            </button>
+          </div>
+        </div>
+      <% end %>
+      
+      <button type="button" class="btn btn--neutral btn--medium" 
+              data-action="click->workflow-steps#addStep">
+        Add Step
+      </button>
+    </div>
+    
+    <% if @available_prompts.empty? %>
+      <div class="alert alert--warning">
+        <strong>No active prompts available.</strong> 
+        You need to create and activate prompts before building workflows.
+        <%= link_to "Create a prompt", new_prompt_path, class: "link" %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="form__actions">
+    <%= form.submit class: "btn btn--primary btn--medium" %>
+    <%= link_to "Cancel", workflow.persisted? ? workflow_path(workflow) : workflows_path, class: "btn btn--neutral btn--medium" %>
+  </div>
+<% end %>
+
+<script>
+// Simple JavaScript for managing workflow steps
+class WorkflowStepsController {
+  static targets = ["step"]
+  
+  addStep() {
+    const container = document.getElementById('workflow-steps-container');
+    const steps = container.querySelectorAll('.workflow-step-input');
+    const stepNumber = steps.length;
+    
+    // Get the existing select element to clone its options
+    const existingSelect = container.querySelector('.workflow-step-input select');
+    
+    const newStep = document.createElement('div');
+    newStep.className = 'workflow-step-input';
+    newStep.setAttribute('data-workflow-steps-target', 'step');
+    
+    // Create the header div
+    const header = document.createElement('div');
+    header.className = 'workflow-step-input__header';
+    
+    // Create step number span
+    const stepSpan = document.createElement('span');
+    stepSpan.className = 'workflow-step-input__number';
+    stepSpan.textContent = stepNumber + 1;
+    
+    // Create select element and clone options
+    const select = document.createElement('select');
+    select.name = `workflow[steps][${stepNumber + 1}]`;
+    select.className = 'form__select';
+    select.required = true;
+    
+    if (existingSelect) {
+      // Clone all options from existing select
+      existingSelect.querySelectorAll('option').forEach(option => {
+        const newOption = option.cloneNode(true);
+        select.appendChild(newOption);
+      });
+    }
+    
+    // Create remove button
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'btn btn--danger btn--small';
+    removeButton.setAttribute('data-action', 'click->workflow-steps#removeStep');
+    removeButton.textContent = 'Remove';
+    
+    // Assemble the header
+    header.appendChild(stepSpan);
+    header.appendChild(select);
+    header.appendChild(removeButton);
+    newStep.appendChild(header);
+    
+    const addButton = container.querySelector('button[data-action*="addStep"]');
+    container.insertBefore(newStep, addButton);
+    this.updateStepNumbers();
+  }
+  
+  removeStep(event) {
+    const step = event.target.closest('.workflow-step-input');
+    if (step) {
+      step.remove();
+      this.updateStepNumbers();
+    }
+  }
+  
+  updateStepNumbers() {
+    const steps = document.querySelectorAll('.workflow-step-input');
+    steps.forEach((step, index) => {
+      const numberSpan = step.querySelector('.workflow-step-input__number');
+      const select = step.querySelector('select');
+      if (numberSpan) numberSpan.textContent = index + 1;
+      if (select) {
+        const oldName = select.name;
+        select.name = oldName.replace(/\[steps\]\[\d+\]/, `[steps][${index + 1}]`);
+      }
+    });
+  }
+}
+
+// Initialize the controller
+document.addEventListener('DOMContentLoaded', function() {
+  const controller = new WorkflowStepsController();
+  
+  // Add event listeners
+  document.addEventListener('click', function(e) {
+    if (e.target.matches('[data-action*="addStep"]')) {
+      e.preventDefault();
+      controller.addStep();
+    }
+    if (e.target.matches('[data-action*="removeStep"]')) {
+      e.preventDefault();
+      controller.removeStep(e);
+    }
+  });
+});
+</script>

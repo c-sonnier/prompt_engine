@@ -31,6 +31,18 @@ module PromptEngine
       find(slug)
     end
 
+    # Execute a workflow by name
+    def workflow(name, variables = {})
+      workflow = Workflow.find_by!(name: name)
+      workflow.execute(variables)
+    end
+
+    # Execute a workflow with step details
+    def workflow_with_steps(name, variables = {})
+      workflow = Workflow.find_by!(name: name)
+      workflow.execute_with_steps(variables)
+    end
+
     # Check if HTTP Basic Auth should be used
     def use_http_basic_auth?
       http_basic_auth_enabled && http_basic_auth_name.present? && http_basic_auth_password.present?
