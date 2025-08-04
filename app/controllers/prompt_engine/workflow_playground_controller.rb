@@ -33,7 +33,8 @@ module PromptEngine
           initial_input: processed_parameters[:initial_input] || "",
           variables: processed_parameters.except(:initial_input),
           provider: params[:provider],
-          api_key: params[:api_key].strip
+          api_key: params[:api_key].strip,
+          save_run: true  # Always save playground executions
         )
 
         @workflow_result = result

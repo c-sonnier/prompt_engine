@@ -2,6 +2,8 @@ module PromptEngine
   class Workflow < ApplicationRecord
     self.table_name = "prompt_engine_workflows"
 
+    has_many :workflow_runs, dependent: :destroy
+
     validates :name, presence: true, uniqueness: true
     validates :steps, presence: true
 

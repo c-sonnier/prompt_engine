@@ -1,0 +1,64 @@
+<div class="admin-header">
+  <h1>Workflow Runs - <%= @workflow.name %></h1>
+  <div class="admin-header__actions">
+    <%= link_to "Back to Workflow", workflow_path(@workflow), class: "btn btn--neutral btn--medium" %>
+  </div>
+</div>
+
+<% if @workflow_runs.any? %>
+  <div class="card">
+    <div class="table-container">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Initial Input</th>
+            <th>Execution Time</th>
+            <th>Run Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @workflow_runs.each do |run| %>
+            <tr>
+              <td>
+                <span class="badge badge--<%= run.status == 'completed' ? 'success' : 'danger' %>">
+                  <%= run.status.humanize %>
+                </span>
+              </td>
+              <td>
+                <div class="text-truncate" style="max-width: 300px;">
+                  <%= run.initial_input.presence || "No input" %>
+                </div>
+              </td>
+              <td>
+                <%= number_with_precision(run.execution_time, precision: 3) %>s
+              </td>
+              <td>
+                <%= run.created_at.strftime("%B %d, %Y at %I:%M %p") %>
+                <div class="text-sm text-muted">
+                  <%= time_ago_in_words(run.created_at) %> ago
+                </div>
+              </td>
+              <td>
+                <%= link_to "View Details", workflow_workflow_run_path(@workflow, run), 
+                    class: "btn btn--neutral btn--small" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% else %>
+  <div class="card">
+    <div class="card__body">
+      <div class="empty-state">
+        <h3>No Workflow Runs</h3>
+        <p>This workflow hasn't been executed yet.</p>
+        <%= link_to "Test in Playground", playground_workflow_path(@workflow), 
+            class: "btn btn--success btn--medium" %>
+      </div>
+    </div>
+  </div>
+<% end %>

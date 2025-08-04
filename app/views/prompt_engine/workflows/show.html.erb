@@ -7,7 +7,7 @@
   </div>
 </div>
 
-<div class="card">
+<div class="card mb-lg">
   <div class="card__header">
     <h2>Workflow Details</h2>
   </div>
@@ -37,7 +37,7 @@
   </div>
 </div>
 
-<div class="card">
+<div class="card mb-lg">
   <div class="card__header">
     <h2>Workflow Steps</h2>
     <div class="text-sm text-muted">
@@ -107,7 +107,7 @@
 </div>
 
 <% if @workflow.steps.present? %>
-  <div class="card">
+  <div class="card mb-lg">
     <div class="card__header">
       <h2>Usage Example</h2>
     </div>
@@ -136,6 +136,59 @@ detailed_result = PromptEngine.workflow_with_steps("<%= @workflow.name %>",
     </div>
   </div>
 <% end %>
+
+<div class="card mb-lg">
+  <div class="card__header">
+    <h2>Recent Runs</h2>
+    <% if @workflow.workflow_runs.any? %>
+      <%= link_to "View All", workflow_workflow_runs_path(@workflow), class: "btn btn--neutral btn--small" %>
+    <% end %>
+  </div>
+  
+  <% if @workflow.workflow_runs.any? %>
+    <div class="table-container">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Input</th>
+            <th>Execution Time</th>
+            <th>Run Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @workflow.workflow_runs.recent.limit(5).each do |run| %>
+            <tr>
+              <td>
+                <span class="badge badge--<%= run.status == 'completed' ? 'success' : 'danger' %>">
+                  <%= run.status.humanize %>
+                </span>
+              </td>
+              <td>
+                <div class="text-truncate" style="max-width: 200px;">
+                  <%= run.initial_input.presence || "No input" %>
+                </div>
+              </td>
+              <td><%= number_with_precision(run.execution_time, precision: 3) %>s</td>
+              <td><%= time_ago_in_words(run.created_at) %> ago</td>
+              <td>
+                <%= link_to "View", workflow_workflow_run_path(@workflow, run), 
+                    class: "btn btn--neutral btn--small" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <div class="card__body">
+      <div class="empty-state">
+        <p>No runs yet. Execute the workflow in the playground to see results here.</p>
+      </div>
+    </div>
+  <% end %>
+</div>
 
 <div class="admin-actions">
   <%= link_to "Edit Workflow", edit_workflow_path(@workflow), class: "btn btn--primary btn--medium" %>

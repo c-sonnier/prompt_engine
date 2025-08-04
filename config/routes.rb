@@ -50,6 +50,7 @@ PromptEngine::Engine.routes.draw do
       get :playground, to: "workflow_playground#show"
       post :playground, to: "workflow_playground#execute"
     end
+    resources :workflow_runs, only: [:index, :show]
   end
 
   # Evaluations index - shows all eval sets across all prompts

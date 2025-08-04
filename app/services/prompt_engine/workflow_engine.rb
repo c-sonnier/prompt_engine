@@ -21,7 +21,7 @@ module PromptEngine
       persistent_variables[:output]
     end
 
-    def execute_with_steps(initial_input: "", variables: {}, provider: nil, api_key: nil)
+    def execute_with_steps(initial_input: "", variables: {}, provider: nil, api_key: nil, save_run: true)
       current_variables = variables.dup
       current_variables[:input] = initial_input
 
@@ -31,63 +31,95 @@ module PromptEngine
       }
 
       start_time = Time.current
+      workflow_run = nil
 
-      @workflow.steps.keys.sort.each_with_index do |step_key, index|
-        prompt_slug = @workflow.steps[step_key]
-        step_start_time = Time.current
+      begin
+        # Create workflow run record if saving is enabled
+        if save_run
+          workflow_run = @workflow.workflow_runs.create!(
+            initial_input: initial_input,
+            input_variables: variables,
+            status: :completed,
+            execution_time: 0
+          )
+        end
 
-        # For playground execution with provider/api_key, we need to use the playground executor
-        if provider && api_key
-          prompt = PromptEngine::Prompt.find_by(slug: prompt_slug)
-          if prompt
-            executor = PromptEngine::PlaygroundExecutor.new(
-              prompt: prompt,
-              provider: provider,
-              api_key: api_key,
-              parameters: current_variables
-            )
+        @workflow.steps.keys.sort.each_with_index do |step_key, index|
+          prompt_slug = @workflow.steps[step_key]
+          step_start_time = Time.current
 
-            execution_result = executor.execute
-            output_content = execution_result[:response]
-            execution_time = execution_result[:execution_time]
+          # For playground execution with provider/api_key, we need to use the playground executor
+          if provider && api_key
+            prompt = PromptEngine::Prompt.find_by(slug: prompt_slug)
+            if prompt
+              executor = PromptEngine::PlaygroundExecutor.new(
+                prompt: prompt,
+                provider: provider,
+                api_key: api_key,
+                parameters: current_variables
+              )
+
+              execution_result = executor.execute
+              output_content = execution_result[:response]
+              execution_time = execution_result[:execution_time]
+            else
+              output_content = "Error: Prompt '#{prompt_slug}' not found"
+              execution_time = 0
+            end
           else
-            output_content = "Error: Prompt '#{prompt_slug}' not found"
-            execution_time = 0
+            # Standard execution for API calls
+            rendered_output = PromptEngine.render(prompt_slug, **current_variables)
+            output_content = rendered_output.content
+            execution_time = (Time.current - step_start_time) * 1000
           end
-        else
-          # Standard execution for API calls
-          rendered_output = PromptEngine.render(prompt_slug, **current_variables)
-          output_content = rendered_output.content
-          execution_time = (Time.current - step_start_time) * 1000
-        end
 
-        step_result = {
-          step: step_key,
-          prompt_slug: prompt_slug,
-          input: current_variables[:input],
-          output: output_content,
-          execution_time: execution_time
-        }
-
-        results[:steps] << step_result
-
-        # After the first step, only pass the output to the next step
-        if index == 0
-          # First step: keep all variables but update input/output
-          current_variables[:input] = output_content
-          current_variables[:output] = output_content
-        else
-          # Subsequent steps: only pass input and output
-          current_variables = {
-            input: output_content,
-            output: output_content
+          step_result = {
+            step: step_key,
+            prompt_slug: prompt_slug,
+            input: current_variables[:input],
+            output: output_content,
+            execution_time: execution_time
           }
-        end
-      end
 
-      results[:final_output] = current_variables[:output]
-      results[:total_execution_time] = (Time.current - start_time) * 1000
-      results
+          results[:steps] << step_result
+
+          # After the first step, only pass the output to the next step
+          if index == 0
+            # First step: keep all variables but update input/output
+            current_variables[:input] = output_content
+            current_variables[:output] = output_content
+          else
+            # Subsequent steps: only pass input and output
+            current_variables = {
+              input: output_content,
+              output: output_content
+            }
+          end
+        end
+
+        results[:final_output] = current_variables[:output]
+        results[:total_execution_time] = (Time.current - start_time) * 1000
+
+        # Update workflow run with results
+        if workflow_run
+          workflow_run.update!(
+            results: results,
+            execution_time: results[:total_execution_time] / 1000.0
+          )
+        end
+
+        results
+      rescue StandardError => e
+        # Update workflow run with error if it exists
+        if workflow_run
+          workflow_run.update!(
+            status: :failed,
+            error_message: e.message,
+            execution_time: (Time.current - start_time)
+          )
+        end
+        raise e
+      end
     end
   end
 end
