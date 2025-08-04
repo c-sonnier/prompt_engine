@@ -9,7 +9,7 @@ class CreateEvalTables < ActiveRecord::Migration[7.1]
 
     create_table :prompt_engine_test_cases do |t|
       t.references :eval_set, null: false, foreign_key: { to_table: :prompt_engine_eval_sets }
-      t.json :input_variables, null: false, default: {}
+      t.json :input_variables, null: false
       t.text :expected_output, null: false
       t.text :description
       t.timestamps

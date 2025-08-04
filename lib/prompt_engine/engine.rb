@@ -14,11 +14,26 @@ module PromptEngine
 
     # Ensure engine's migrations are available to the host app
     # This is the standard Rails engine pattern
+    # Skip this for the dummy app to avoid duplicate migrations
     initializer :append_migrations do |app|
-      unless app.root.to_s.match?(root.to_s)
+      unless app.root.to_s.match?(root.to_s) || app.root.to_s.include?("spec/dummy")
         config.paths["db/migrate"].expanded.each do |expanded_path|
           app.config.paths["db/migrate"] << expanded_path
         end
+      end
+    end
+
+    # Configure assets for both Sprockets and Propshaft
+    initializer "prompt_engine.assets" do |app|
+      # For Sprockets (traditional asset pipeline)
+      if defined?(Sprockets)
+        app.config.assets.precompile += %w[prompt_engine/application.css]
+        app.config.assets.paths << root.join("app/assets/stylesheets")
+      end
+
+      # For Propshaft (Rails 7+ default)
+      if defined?(Propshaft)
+        app.config.assets.paths << root.join("app/assets/stylesheets")
       end
     end
 

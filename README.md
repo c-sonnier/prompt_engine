@@ -37,20 +37,32 @@ Add this line to your application's Gemfile:
 gem "prompt_engine"
 ```
 
+```sh
+bundle add "prompt_engine"
+```
+
 And then execute:
 
 ```bash
 $ bundle
-$ rails prompt_engine:install:migrations
+
 $ rails db:migrate
 $ rails prompt_engine:seed  # Optional: adds sample prompts
 ```
+
+_`$ rails prompt_engine:install:migrations`_ might be useful to but `rails db:migrate` after adding
+gem and bundling should work.
+
+For migration handling details, see [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
 
 ## Setup
 
 ### 1. Configure Encryption
 
-PromptEngine uses Rails encryption to secure API keys. Add to your environment files:
+PromptEngine uses Rails encryption to secure API keys. For detailed setup instructions, see
+[docs/ENCRYPTION_SETUP.md](docs/ENCRYPTION_SETUP.md).
+
+**Quick start for development:**
 
 ```ruby
 # config/environments/development.rb
@@ -63,7 +75,8 @@ For production, use `rails db:encryption:init` to generate secure keys.
 
 ### 2. Configure API Keys
 
-Add your AI provider API keys to Rails credentials:
+Add your AI provider API keys to Rails credentials. See
+[docs/API_CREDENTIALS.md](docs/API_CREDENTIALS.md) for complete configuration options.
 
 ```bash
 rails credentials:edit
@@ -89,7 +102,9 @@ end
 
 ### 4. Authentication (Optional but Recommended)
 
-PromptEngine provides flexible authentication options to secure your admin interface. By default, authentication is enabled but not configured, allowing full access. We strongly recommend configuring authentication for production environments.
+PromptEngine provides flexible authentication options to secure your admin interface. By default,
+authentication is enabled but not configured, allowing full access. We strongly recommend
+configuring authentication for production environments.
 
 #### Quick Start
 
@@ -143,6 +158,7 @@ end
 ```
 
 **Security Notes:**
+
 - Uses `ActiveSupport::SecurityUtils.secure_compare` to prevent timing attacks
 - Credentials are never logged or exposed in errors
 - Empty credentials are treated as invalid
@@ -208,12 +224,12 @@ end
 
 #### Configuration Reference
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `authentication_enabled` | `true` | Master switch for all authentication |
-| `http_basic_auth_enabled` | `false` | Enable HTTP Basic authentication |
-| `http_basic_auth_name` | `nil` | Username for HTTP Basic auth |
-| `http_basic_auth_password` | `nil` | Password for HTTP Basic auth |
+| Setting                    | Default | Description                          |
+| -------------------------- | ------- | ------------------------------------ |
+| `authentication_enabled`   | `true`  | Master switch for all authentication |
+| `http_basic_auth_enabled`  | `false` | Enable HTTP Basic authentication     |
+| `http_basic_auth_name`     | `nil`   | Username for HTTP Basic auth         |
+| `http_basic_auth_password` | `nil`   | Password for HTTP Basic auth         |
 
 #### Testing with Authentication
 
@@ -245,9 +261,12 @@ get prompt_engine.prompts_path, headers: {
 5. **Implement rate limiting** on your application server
 6. **Monitor access logs** for suspicious activity
 
-For more authentication examples and advanced configurations, see [AUTHENTICATION.md](docs/AUTHENTICATION.md)
+For more authentication examples and advanced configurations, see
+[AUTHENTICATION.md](docs/AUTHENTICATION.md)
 
 ## Usage
+
+For detailed usage instructions and examples, see [docs/USAGE.md](docs/USAGE.md).
 
 ### Admin Interface
 
@@ -280,6 +299,10 @@ rendered.system_message  # => "You are a helpful customer support agent..."
 rendered.model          # => "gpt-4"
 rendered.temperature    # => 0.7
 
+# Access parameter values - see docs/VARIABLE_ACCESS.md for details
+rendered.parameters      # => {"customer_name" => "John", "issue" => "Can't login..."}
+rendered.parameter(:customer_name)  # => "John"
+
 # Direct integration with OpenAI
 client = OpenAI::Client.new(access_token: ENV["OPENAI_API_KEY"])
 response = rendered.execute_with(client)
@@ -301,6 +324,8 @@ rendered = PromptEngine.render("onboarding-email",
   version: 3
 )
 ```
+
+For complete parameter access documentation, see [docs/VARIABLE_ACCESS.md](docs/VARIABLE_ACCESS.md).
 
 ## How It Works
 
@@ -452,6 +477,17 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed technical document
 
 The gem is available as open source under the terms of the
 [MIT License](https://opensource.org/licenses/MIT).
+
+## Documentation
+
+- 📖 [Architecture Overview](docs/ARCHITECTURE.md) - Technical architecture and design decisions
+- 🔐 [Authentication Guide](docs/AUTHENTICATION.md) - Securing your PromptEngine installation
+- 🔑 [API Credentials Setup](docs/API_CREDENTIALS.md) - Configuring AI provider API keys
+- 🔒 [Encryption Setup](docs/ENCRYPTION_SETUP.md) - Setting up Rails encryption for secure storage
+- 📦 [Migration Guide](docs/MIGRATIONS.md) - Handling database migrations
+- 📝 [Usage Guide](docs/USAGE.md) - Complete usage examples and best practices
+- 🔤 [Variable Access](docs/VARIABLE_ACCESS.md) - Working with parameters in rendered prompts
+- 📋 [Product Specification](docs/SPEC.md) - Complete product vision and roadmap
 
 ## Support
 
