@@ -46,6 +46,28 @@
       </div>
     </div>
     
+    <div class="form__group">
+      <label class="form__label">Title</label>
+      <div class="form__input-group">
+        <div class="form__static" id="title-display"><%= @workflow_run.title %></div>
+        <button type="button" class="btn btn--small btn--neutral" id="edit-title-btn"
+                onclick="document.getElementById('edit-title-form').style.display = 'block'; document.getElementById('title-display').style.display = 'none'; this.style.display = 'none';">
+          Edit
+        </button>
+      </div>
+      
+      <div id="edit-title-form" style="display: none;" class="mt-sm">
+        <%= form_with url: update_title_workflow_workflow_run_path(@workflow, @workflow_run), method: :patch, local: true, class: "form__inline" do %>
+          <input type="text" name="title" value="<%= @workflow_run.title %>" class="form__input" style="flex: 1;">
+          <button type="submit" class="btn btn--primary btn--small ml-xs">Save</button>
+          <button type="button" class="btn btn--neutral btn--small ml-xs" 
+                  onclick="document.getElementById('edit-title-form').style.display = 'none'; document.getElementById('title-display').style.display = 'block'; document.getElementById('edit-title-btn').style.display = 'inline-block';">
+            Cancel
+          </button>
+        <% end %>
+      </div>
+    </div>
+    
     <% if @workflow_run.initial_input.present? %>
       <div class="form__group">
         <label class="form__label">Initial Input</label>

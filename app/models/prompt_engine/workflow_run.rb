@@ -12,5 +12,15 @@ module PromptEngine
     # input_variables structure: { key: "value", ... }
     
     scope :recent, -> { order(created_at: :desc) }
+    
+    before_create :set_default_title
+    
+    private
+    
+    def set_default_title
+      self.title ||= created_at.present? ? 
+        created_at.strftime("%B %d, %Y at %I:%M %p") : 
+        Time.current.strftime("%B %d, %Y at %I:%M %p")
+    end
   end
 end

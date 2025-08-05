@@ -151,6 +151,7 @@ detailed_result = PromptEngine.workflow_with_steps("<%= @workflow.name %>",
         <thead>
           <tr>
             <th>Status</th>
+            <th>Title</th>
             <th>Input</th>
             <th>Execution Time</th>
             <th>Run Date</th>
@@ -164,6 +165,11 @@ detailed_result = PromptEngine.workflow_with_steps("<%= @workflow.name %>",
                 <span class="badge badge--<%= run.status == 'completed' ? 'success' : 'danger' %>">
                   <%= run.status.humanize %>
                 </span>
+              </td>
+              <td>
+                <div class="text-truncate" style="max-width: 150px;">
+                  <%= run.title %>
+                </div>
               </td>
               <td>
                 <div class="text-truncate" style="max-width: 200px;">
