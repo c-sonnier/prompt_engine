@@ -1,6 +1,7 @@
 module PromptEngine
   class PromptsController < ApplicationController
     before_action :set_prompt, only: [ :show, :edit, :update, :destroy ]
+    before_action :load_model_configuration, only: [ :new, :edit ]
 
     def index
       @prompts = PromptEngine::Prompt.by_name
@@ -66,6 +67,12 @@ module PromptEngine
 
     def set_prompt
       @prompt = PromptEngine::Prompt.find(params[:id])
+    end
+
+    def load_model_configuration
+      @settings = Setting.instance
+      @available_models = @settings.available_models
+      @models_by_provider = @settings.models_by_provider
     end
 
     def prompt_params

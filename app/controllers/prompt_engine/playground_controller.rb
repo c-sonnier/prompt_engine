@@ -5,6 +5,18 @@ module PromptEngine
     def show
       @parameters = ParameterParser.new(@prompt.content).extract_parameters.map { |p| p[:name] }
       @settings = Setting.instance
+      @available_models = @settings.available_models
+      @models_by_provider = @settings.models_by_provider
+      
+      # Determine provider and model from prompt configuration
+      @provider = determine_provider_from_model(@prompt.model)
+      @model_info = @settings.find_model_by_value(@prompt.model) if @prompt.model.present?
+      
+      # If no model is configured, use default for the determined provider
+      if @prompt.model.blank? && @provider
+        @prompt.model = @settings.default_model_for_provider(@provider)
+        @model_info = @settings.find_model_by_value(@prompt.model)
+      end
     end
 
     def execute
@@ -17,9 +29,16 @@ module PromptEngine
         render :result and return
       end
 
+      # Determine provider from prompt configuration (same logic as in show)
+      provider = determine_provider_from_model(@prompt.model)
+      if provider.blank?
+        @error = "Unable to determine AI provider from prompt model configuration"
+        render :result and return
+      end
+
       executor = PlaygroundExecutor.new(
         prompt: @prompt,
-        provider: params[:provider],
+        provider: provider,
         api_key: params[:api_key].strip,
         parameters: processed_parameters
       )
@@ -80,6 +99,23 @@ module PromptEngine
       end
 
       processed_params
+    end
+
+    def determine_provider_from_model(model)
+      return nil if model.blank?
+      
+      model_lower = model.downcase
+      
+      # Check for Anthropic models
+      if model_lower.include?("claude") || model_lower.include?("anthropic")
+        "anthropic"
+      # Check for OpenAI models
+      elsif model_lower.include?("gpt") || model_lower.include?("openai") || model_lower.include?("davinci") || model_lower.include?("curie") || model_lower.include?("babbage") || model_lower.include?("ada")
+        "openai"
+      else
+        # Default to anthropic for unknown models
+        "anthropic"
+      end
     end
   end
 end

@@ -41,10 +41,14 @@
       <div class="form__group">
         <%= form.label :provider, "AI Provider", class: "form__label form__label--required" %>
         <%= form.select :provider,
-            options_for_select([
-              ["Anthropic (claude-3-5-sonnet-20241022)", "anthropic"],
-              ["OpenAI (gpt-4o)", "openai"]
-            ]),
+            options_for_select(
+              @settings.models_by_provider.map { |provider, models| 
+                default_model = @settings.default_model_for_provider(provider)
+                model_info = models.find { |m| m[:value] == default_model }
+                display_name = model_info ? "#{provider.capitalize} (#{model_info[:name]})" : provider.capitalize
+                [display_name, provider]
+              }
+            ),
             { prompt: "Select a provider" },
             class: "form__select", required: true %>
         <div class="form__help">Select which AI provider to test with</div>

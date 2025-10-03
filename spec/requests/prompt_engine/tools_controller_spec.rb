@@ -69,4 +69,28 @@ RSpec.describe PromptEngine::ToolsController, type: :request do
       expect(json_response['tools']).to be_an(Array)
     end
   end
+
+  describe 'GET /tools/discover' do
+    let(:mock_tools) { [{ name: 'TestTool', description: 'Test description' }] }
+
+    before do
+      allow(PromptEngine::ToolDiscoveryService).to receive(:discover_tools).and_return(mock_tools)
+    end
+
+    it 'returns discovered tools' do
+      get prompt_engine.discover_tools_path
+      
+      expect(response).to have_http_status(:success)
+      json_response = JSON.parse(response.body)
+      expect(json_response['tools']).to eq(mock_tools.map(&:stringify_keys))
+    end
+
+    it 'works when prompt_engine is mounted in a namespace' do
+      # This test ensures the route works regardless of mounting context
+      get prompt_engine.discover_tools_path
+      
+      expect(response).to have_http_status(:success)
+      expect(response.content_type).to include('application/json')
+    end
+  end
 end

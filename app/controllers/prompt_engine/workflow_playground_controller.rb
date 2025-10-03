@@ -5,6 +5,8 @@ module PromptEngine
 
     def show
       @settings = PromptEngine::Setting.instance
+      @available_models = @settings.available_models
+      @models_by_provider = @settings.models_by_provider
       # Get unique parameters from all prompts in the workflow
       @parameters = extract_workflow_parameters
       # Get the first prompt for parameter type checking

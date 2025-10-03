@@ -8,7 +8,7 @@ class WeatherTool < RubyLLM::Tool
   param :longitude, desc: "Longitude (e.g., 13.4050)"
 
   def execute(latitude:, longitude:)
-    url = "https://api.open-meteo.com/v1/forecast?latitude=#{latitude}&longitude=#{longitude}&wind_speed_unit=mph&temperature_unit=fahrenheit"
+    url = "https://api.open-meteo.com/v1/forecast?latitude=#{latitude}&longitude=#{longitude}&current=temperature_2m&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch"
 
     response = Faraday.get(url)
     data = JSON.parse(response.body)

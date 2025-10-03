@@ -21,7 +21,8 @@ module PromptEngine
     end
 
     def settings_params
-      params.require(:setting).permit(:openai_api_key, :anthropic_api_key)
+      params.require(:setting).permit(:openai_api_key, :anthropic_api_key, 
+        model_preferences: [:enabled_models])
     end
   end
 end

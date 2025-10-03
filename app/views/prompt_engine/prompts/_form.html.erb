@@ -67,16 +67,20 @@
     <div class="form__group">
       <%= form.label :model, "AI Model", class: "form__label" %>
       <%= form.select :model, 
-          options_for_select([
-            ["GPT-4", "gpt-4"],
-            ["GPT-4 Turbo", "gpt-4-turbo-preview"],
-            ["GPT-3.5 Turbo", "gpt-3.5-turbo"],
-            ["Claude 3 Opus", "claude-3-opus"],
-            ["Claude 3 Sonnet", "claude-3-sonnet"],
-            ["Claude 3 Haiku", "claude-3-haiku"]
-          ], prompt.model),
+          options_for_select(
+            @available_models.map { |model| [model[:name], model[:value]] },
+            prompt.model
+          ),
           { include_blank: "Select a model" },
           class: "form__select" %>
+      <div class="form__help">
+        <% if @models_by_provider.present? %>
+          Available models: 
+          <% @models_by_provider.each do |provider, models| %>
+            <%= provider.capitalize %> (<%= models.count %>), 
+          <% end %>
+        <% end %>
+      </div>
     </div>
 
     <div class="form__group">
@@ -329,7 +333,9 @@ document.addEventListener('DOMContentLoaded', function() {
   function loadAvailableTools() {
     // For new prompts, we need to discover tools differently
     // We'll use a simple approach: try to load tools from a discovery endpoint
-    fetch('./tools/discover')
+    // Use the proper Rails route helper to handle both namespaced and non-namespaced mounting
+    const toolsDiscoverUrl = '<%= discover_tools_path %>';
+    fetch(toolsDiscoverUrl)
       .then(response => response.json())
       .then(data => {
         if (data.tools && data.tools.length > 0) {

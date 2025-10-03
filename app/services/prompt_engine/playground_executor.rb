@@ -2,8 +2,9 @@ module PromptEngine
   class PlaygroundExecutor
     attr_reader :prompt, :provider, :api_key, :parameters
 
+    # Legacy models constant for backward compatibility
     MODELS = {
-      "anthropic" => "claude-3-7",
+      "anthropic" => "claude-3-5-sonnet-20241022",
       "openai" => "gpt-4o"
     }.freeze
 
@@ -48,8 +49,11 @@ module PromptEngine
       # Configure RubyLLM with the appropriate API key
       configure_ruby_llm
 
+      # Get the model to use - prefer prompt's model, fallback to default for provider
+      model_to_use = prompt.model.presence || default_model_for_provider(provider)
+      
       # Create chat instance with the model
-      chat = RubyLLM.chat(model: MODELS[provider])
+      chat = RubyLLM.chat(model: model_to_use)
 
       # Enable structured JSON output if json_mode is on for the prompt
       if prompt.respond_to?(:json_mode) && prompt.json_mode
@@ -266,6 +270,10 @@ module PromptEngine
           config.openai_api_key = api_key.strip
         end
       end
+    end
+
+    def default_model_for_provider(provider)
+      ModelConfigurationService.default_model_for_provider(provider)
     end
 
     def load_selected_tools(tool_class_names)
