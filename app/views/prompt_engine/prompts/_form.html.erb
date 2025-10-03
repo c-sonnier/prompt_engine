@@ -329,7 +329,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function loadAvailableTools() {
     // For new prompts, we need to discover tools differently
     // We'll use a simple approach: try to load tools from a discovery endpoint
-    fetch('/prompt_engine/tools/discover')
+    fetch('./tools/discover')
       .then(response => response.json())
       .then(data => {
         if (data.tools && data.tools.length > 0) {
