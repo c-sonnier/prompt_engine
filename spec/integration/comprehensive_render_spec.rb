@@ -253,4 +253,100 @@ RSpec.describe "Comprehensive PromptEngine.render usage patterns", type: :integr
       end
     end
   end
+
+  describe "PromptEngine.execute" do
+    let!(:test_prompt) do
+      PromptEngine::Prompt.create!(
+        name: "Test Execute Prompt",
+        slug: "test-execute",
+        content: "Hello {{name}}, this is a test prompt!",
+        system_message: "You are a helpful assistant.",
+        model: "gpt-3.5-turbo",
+        temperature: 0.7,
+        status: "enabled"
+      )
+    end
+
+    let!(:anthropic_prompt) do
+      PromptEngine::Prompt.create!(
+        name: "Anthropic Test Prompt",
+        slug: "anthropic-test",
+        content: "Hello {{name}}, this is an Anthropic test!",
+        model: "claude-3-sonnet",
+        temperature: 0.5,
+        status: "enabled"
+      )
+    end
+
+    before do
+      # Mock the API keys to avoid actual API calls
+      allow_any_instance_of(PromptEngine::Setting).to receive(:openai_api_key).and_return("sk-test-key")
+      allow_any_instance_of(PromptEngine::Setting).to receive(:anthropic_api_key).and_return("sk-ant-test-key")
+      
+      # Mock the PlaygroundExecutor to avoid actual API calls
+      allow_any_instance_of(PromptEngine::PlaygroundExecutor).to receive(:execute).and_return({
+        response: "Hello Test User, this is a test prompt!",
+        execution_time: 1.234,
+        token_count: 25,
+        model: "gpt-3.5-turbo",
+        provider: "openai"
+      })
+    end
+
+    it "executes a prompt with parameters" do
+      result = PromptEngine.execute("test-execute", name: "Test User")
+      
+      expect(result).to be_a(Hash)
+      expect(result[:response]).to eq("Hello Test User, this is a test prompt!")
+      expect(result[:execution_time]).to eq(1.234)
+      expect(result[:token_count]).to eq(25)
+      expect(result[:model]).to eq("gpt-3.5-turbo")
+      expect(result[:provider]).to eq("openai")
+    end
+
+    it "automatically detects OpenAI provider for GPT models" do
+      result = PromptEngine.execute("test-execute", name: "Test User")
+      expect(result[:provider]).to eq("openai")
+    end
+
+    it "automatically detects Anthropic provider for Claude models" do
+      allow_any_instance_of(PromptEngine::PlaygroundExecutor).to receive(:execute).and_return({
+        response: "Hello Test User, this is an Anthropic test!",
+        execution_time: 1.456,
+        token_count: 30,
+        model: "claude-3-sonnet",
+        provider: "anthropic"
+      })
+
+      result = PromptEngine.execute("anthropic-test", name: "Test User")
+      expect(result[:provider]).to eq("anthropic")
+    end
+
+    it "raises error when prompt is not found" do
+      expect {
+        PromptEngine.execute("non-existent-prompt", name: "Test")
+      }.to raise_error(ActiveRecord::RecordNotFound)
+    end
+
+    it "raises error when API key is not configured" do
+      allow_any_instance_of(PromptEngine::Setting).to receive(:openai_api_key).and_return(nil)
+      
+      expect {
+        PromptEngine.execute("test-execute", name: "Test")
+      }.to raise_error(ArgumentError, /OpenAI API key not configured/)
+    end
+
+    it "works with empty parameters" do
+      allow_any_instance_of(PromptEngine::PlaygroundExecutor).to receive(:execute).and_return({
+        response: "Hello , this is a test prompt!",
+        execution_time: 1.0,
+        token_count: 20,
+        model: "gpt-3.5-turbo",
+        provider: "openai"
+      })
+
+      result = PromptEngine.execute("test-execute")
+      expect(result[:response]).to eq("Hello , this is a test prompt!")
+    end
+  end
 end

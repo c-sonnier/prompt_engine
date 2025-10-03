@@ -212,6 +212,44 @@ Renders a prompt template with the given variables.
 
 **Returns:** `PromptEngine::RenderedPrompt` instance
 
+### PromptEngine.execute(slug, parameters = {})
+
+Executes a prompt with the given parameters and returns the AI response. This method automatically detects the provider based on the prompt's model and uses the configured API keys.
+
+**Parameters:**
+
+- `slug` (String): The unique identifier for the prompt
+- `parameters` (Hash): Parameters to pass to the prompt (optional)
+
+**Returns:** `Hash` with the following keys:
+- `response` (String): The AI-generated response
+- `execution_time` (Float): Time taken to execute in seconds
+- `token_count` (Integer): Number of tokens used
+- `model` (String): The model that was used
+- `provider` (String): The provider that was used ("openai" or "anthropic")
+
+**Example:**
+
+```ruby
+# Execute a prompt with parameters
+result = PromptEngine.execute("customer-support", 
+  customer_name: "John", 
+  issue: "Can't login to my account"
+)
+
+puts result[:response]        # => "Hello John, I understand you're having trouble..."
+puts result[:execution_time]  # => 1.234
+puts result[:token_count]     # => 25
+puts result[:model]          # => "gpt-3.5-turbo"
+puts result[:provider]       # => "openai"
+
+# Execute without parameters
+result = PromptEngine.execute("simple-greeting")
+puts result[:response]       # => "Hello! How can I help you today?"
+```
+
+**Note:** This method requires API keys to be configured in the settings. It will raise an `ArgumentError` if the required API key is not configured.
+
 ### RenderedPrompt Methods
 
 - `content`: The rendered prompt content
