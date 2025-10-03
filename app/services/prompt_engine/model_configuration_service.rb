@@ -83,9 +83,26 @@ module PromptEngine
           # Try to access the RubyLLM models table
           # This assumes RubyLLM uses a standard Rails model structure
           if defined?(RubyLLM) && RubyLLM.const_defined?(:Model)
-            RubyLLM::Model.table_exists?
+            model_class = RubyLLM::Model
+            # Check if it's a class that responds to table_exists?
+            if model_class.is_a?(Class) && model_class.respond_to?(:table_exists?)
+              model_class.table_exists?
+            else
+              # If it's a module or doesn't have table_exists?, check for table directly
+              ActiveRecord::Base.connection.table_exists?("ruby_llm_models") ||
+              ActiveRecord::Base.connection.table_exists?("rubyllm_models") ||
+              ActiveRecord::Base.connection.table_exists?("models")
+            end
           elsif defined?(RubyLLM) && RubyLLM.const_defined?(:Models)
-            RubyLLM::Models.table_exists?
+            models_class = RubyLLM::Models
+            if models_class.is_a?(Class) && models_class.respond_to?(:table_exists?)
+              models_class.table_exists?
+            else
+              # If it's a module or doesn't have table_exists?, check for table directly
+              ActiveRecord::Base.connection.table_exists?("ruby_llm_models") ||
+              ActiveRecord::Base.connection.table_exists?("rubyllm_models") ||
+              ActiveRecord::Base.connection.table_exists?("models")
+            end
           else
             # Try to find the models table directly
             ActiveRecord::Base.connection.table_exists?("ruby_llm_models") ||
@@ -135,7 +152,12 @@ module PromptEngine
           RubyLLM::Models,
           RubyLLM::ModelRecord,
           RubyLLM::ModelsRecord
-        ].find { |klass| klass && klass.respond_to?(:table_exists?) && klass.table_exists? }
+        ].find do |klass|
+          klass && 
+          klass.is_a?(Class) && 
+          klass.respond_to?(:table_exists?) && 
+          klass.table_exists?
+        end
       rescue
         nil
       end
