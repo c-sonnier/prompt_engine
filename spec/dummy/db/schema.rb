@@ -110,7 +110,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_09_30_173443) do
     t.datetime "updated_at", null: false
     t.boolean "json_mode", default: false, null: false
     t.boolean "active", default: false, null: false
-    t.json "tools", default: [], null: false
+    t.json "tools", null: false
     t.index ["active"], name: "index_prompt_engine_prompt_versions_on_active"
     t.index ["json_mode"], name: "index_prompt_engine_prompt_versions_on_json_mode"
     t.index ["prompt_id", "version_number"], name: "index_prompt_versions_on_prompt_and_version", unique: true
@@ -134,7 +134,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_09_30_173443) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "json_mode", default: false, null: false
-    t.json "tools", default: [], null: false
+    t.json "tools", null: false
     t.index ["json_mode"], name: "index_prompt_engine_prompts_on_json_mode"
     t.index ["slug"], name: "index_prompt_engine_prompts_on_slug", unique: true
     t.index ["tools"], name: "index_prompt_engine_prompts_on_tools"
