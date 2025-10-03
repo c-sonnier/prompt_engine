@@ -1,6 +1,6 @@
 <div class="admin-header">
   <div>
-    <h1>Workflow Run Details</h1>
+    <h1>Workflow Run Details (Beta)</h1>
     <p class="text-muted">
       Run from <%= @workflow_run.created_at.strftime("%B %d, %Y at %I:%M %p") %>
       (<%= time_ago_in_words(@workflow_run.created_at) %> ago)
@@ -145,7 +145,7 @@
     <% if @workflow_run.results['final_output'].present? %>
       <div class="card final-result-card">
         <div class="card__header">
-          <h3 class="card__title">Final Workflow Result</h3>
+          <h3 class="card__title">Final Workflow Result (Beta)</h3>
         </div>
         <div class="card__body">
           <div class="final-result">
