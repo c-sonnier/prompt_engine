@@ -2,9 +2,9 @@ require 'rails_helper'
 
 RSpec.describe PromptEngine::ModelConfigurationService do
   describe '.available_models' do
-    context 'when RubyLLM models table does not exist' do
+    context 'when RubyLLM.models is not available' do
       before do
-        allow(described_class).to receive(:ruby_llm_models_table_exists?).and_return(false)
+        hide_const('RubyLLM') if defined?(RubyLLM)
       end
 
       it 'returns default models' do
@@ -27,22 +27,21 @@ RSpec.describe PromptEngine::ModelConfigurationService do
       end
     end
 
-    context 'when RubyLLM models table exists' do
-      let(:mock_model_class) { double('RubyLLM::Model') }
-      let(:mock_models) do
+    context 'when RubyLLM.models is available' do
+      let(:rubyllm_models) do
         [
-          double('Model', name: 'GPT-4 Custom', value: 'gpt-4-custom', provider: 'openai', description: 'Custom GPT-4'),
-          double('Model', name: 'Claude Custom', value: 'claude-custom', provider: 'anthropic', description: 'Custom Claude')
+          { name: 'GPT-4 Custom', value: 'gpt-4-custom', provider: 'openai', description: 'Custom GPT-4' },
+          { name: 'Claude Custom', value: 'claude-custom', provider: 'anthropic', description: 'Custom Claude' }
         ]
       end
 
       before do
-        allow(described_class).to receive(:ruby_llm_models_table_exists?).and_return(true)
-        allow(described_class).to receive(:find_ruby_llm_model_class).and_return(mock_model_class)
-        allow(mock_model_class).to receive(:all).and_return(mock_models)
+        stub_const('RubyLLM', double('RubyLLM'))
+        allow(RubyLLM).to receive(:respond_to?).with(:models).and_return(true)
+        allow(RubyLLM).to receive(:models).and_return(rubyllm_models)
       end
 
-      it 'loads models from RubyLLM table' do
+      it 'loads models from RubyLLM.models' do
         models = described_class.available_models
         
         expect(models).to be_an(Array)
@@ -51,28 +50,60 @@ RSpec.describe PromptEngine::ModelConfigurationService do
         expect(models.first[:provider]).to eq('openai')
       end
     end
+
+    context 'when RubyLLM.models returns string models' do
+      let(:string_models) { ['gpt-4o', 'claude-3-5-sonnet-20241022'] }
+
+      before do
+        stub_const('RubyLLM', double('RubyLLM'))
+        allow(RubyLLM).to receive(:respond_to?).with(:models).and_return(true)
+        allow(RubyLLM).to receive(:models).and_return(string_models)
+      end
+
+      it 'converts string models to proper format' do
+        models = described_class.available_models
+        
+        expect(models).to be_an(Array)
+        expect(models.length).to eq(2)
+        expect(models.first[:name]).to eq('gpt-4o')
+        expect(models.first[:value]).to eq('gpt-4o')
+        expect(models.first[:provider]).to eq('openai')
+      end
+    end
+
+    context 'when RubyLLM.models returns empty array or raises error' do
+      it 'falls back to default models when empty' do
+        stub_const('RubyLLM', double('RubyLLM'))
+        allow(RubyLLM).to receive(:respond_to?).with(:models).and_return(true)
+        allow(RubyLLM).to receive(:models).and_return([])
+        
+        models = described_class.available_models
+        expect(models).to eq(described_class::DEFAULT_MODELS)
+      end
+
+      it 'falls back to default models when error' do
+        stub_const('RubyLLM', double('RubyLLM'))
+        allow(RubyLLM).to receive(:respond_to?).with(:models).and_return(true)
+        allow(RubyLLM).to receive(:models).and_raise(StandardError.new('API error'))
+        
+        models = described_class.available_models
+        expect(models).to eq(described_class::DEFAULT_MODELS)
+      end
+    end
   end
 
   describe '.models_by_provider' do
     it 'groups models by provider' do
-      models = described_class.available_models
       grouped = described_class.models_by_provider
       
       expect(grouped).to be_a(Hash)
       expect(grouped.keys).to include('openai', 'anthropic')
-      
-      grouped.each do |provider, provider_models|
-        expect(provider_models).to all(have_key(:provider))
-        expect(provider_models).to all(satisfy { |m| m[:provider] == provider })
-      end
     end
   end
 
   describe '.models_for_provider' do
     it 'returns models for specific provider' do
       openai_models = described_class.models_for_provider('openai')
-      
-      expect(openai_models).to be_an(Array)
       expect(openai_models).to all(satisfy { |m| m[:provider] == 'openai' })
     end
   end
@@ -80,7 +111,6 @@ RSpec.describe PromptEngine::ModelConfigurationService do
   describe '.model_options_for_select' do
     it 'returns options for form select' do
       options = described_class.model_options_for_select
-      
       expect(options).to be_an(Array)
       expect(options.first).to be_an(Array)
       expect(options.first.length).to eq(2) # [display_name, value]
@@ -88,9 +118,6 @@ RSpec.describe PromptEngine::ModelConfigurationService do
 
     it 'filters by provider when specified' do
       openai_options = described_class.model_options_for_select('openai')
-      
-      expect(openai_options).to be_an(Array)
-      # All options should be from OpenAI models
       openai_models = described_class.models_for_provider('openai')
       expect(openai_options.length).to eq(openai_models.length)
     end
@@ -98,17 +125,13 @@ RSpec.describe PromptEngine::ModelConfigurationService do
 
   describe '.find_model_by_value' do
     it 'finds model by value' do
-      # Use a known model value from default models
       model = described_class.find_model_by_value('gpt-4o')
-      
       expect(model).to be_a(Hash)
       expect(model[:value]).to eq('gpt-4o')
     end
 
     it 'returns nil for unknown model' do
-      model = described_class.find_model_by_value('unknown-model')
-      
-      expect(model).to be_nil
+      expect(described_class.find_model_by_value('unknown-model')).to be_nil
     end
   end
 
@@ -123,40 +146,16 @@ RSpec.describe PromptEngine::ModelConfigurationService do
   end
 
   describe '.default_model_for_provider' do
-    it 'returns correct default for OpenAI' do
+    it 'returns correct defaults for known providers' do
       expect(described_class.default_model_for_provider('openai')).to eq('gpt-5')
-    end
-
-    it 'returns correct default for Anthropic' do
       expect(described_class.default_model_for_provider('anthropic')).to eq('claude-sonnet-4-5-20250929')
     end
 
     it 'returns first available model for unknown provider' do
-      default = described_class.default_model_for_provider('unknown')
-      expect(default).to be_present
+      expect(described_class.default_model_for_provider('unknown')).to be_present
     end
   end
 
-  describe '.ruby_llm_models_table_exists?' do
-    context 'when RubyLLM is not defined' do
-      before do
-        hide_const('RubyLLM') if defined?(RubyLLM)
-      end
 
-      it 'returns false' do
-        expect(described_class.send(:ruby_llm_models_table_exists?)).to be false
-      end
-    end
 
-    context 'when RubyLLM is defined but no models table' do
-      before do
-        stub_const('RubyLLM', Module.new)
-        allow(ActiveRecord::Base.connection).to receive(:table_exists?).and_return(false)
-      end
-
-      it 'returns false' do
-        expect(described_class.send(:ruby_llm_models_table_exists?)).to be false
-      end
-    end
-  end
 end

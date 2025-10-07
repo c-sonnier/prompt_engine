@@ -131,7 +131,7 @@ module PromptEngine
         response: response_content,
         execution_time: execution_time,
         token_count: token_count,
-        model: MODELS[provider],
+        model: model_to_use,
         provider: provider
       }
     rescue => e
@@ -199,7 +199,10 @@ module PromptEngine
     def validate_inputs!
       raise ArgumentError, "Provider is required" if provider.blank?
       raise ArgumentError, "API key is required" if api_key.blank?
-      raise ArgumentError, "Invalid provider" unless MODELS.key?(provider)
+      
+      # Validate provider using available models
+      available_providers = ModelConfigurationService.available_models.map { |m| m[:provider] }.uniq
+      raise ArgumentError, "Invalid provider. Available providers: #{available_providers.join(', ')}" unless available_providers.include?(provider)
 
       # Validate API key format
       validate_api_key_format!

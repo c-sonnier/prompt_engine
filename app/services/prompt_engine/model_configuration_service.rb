@@ -28,13 +28,11 @@ module PromptEngine
     ].freeze
 
     class << self
-      # Get available models, either from RubyLLM models table or default list
+      # Get available models, either from RubyLLM.models or default list
       def available_models
-        if ruby_llm_models_table_exists?
-          load_models_from_ruby_llm
-        else
-          DEFAULT_MODELS
-        end
+        load_models_from_ruby_llm
+      rescue
+        DEFAULT_MODELS
       end
 
       # Get models grouped by provider
@@ -75,102 +73,57 @@ module PromptEngine
         end
       end
 
-      # Check if RubyLLM models table exists
-      def ruby_llm_models_table_exists?
-        return false unless defined?(ActiveRecord)
-        
-        begin
-          # Try to access the RubyLLM models table
-          # This assumes RubyLLM uses a standard Rails model structure
-          if defined?(RubyLLM) && RubyLLM.const_defined?(:Model)
-            model_class = RubyLLM::Model
-            # Check if it's a class that responds to table_exists?
-            if model_class.is_a?(Class) && model_class.respond_to?(:table_exists?)
-              model_class.table_exists?
-            else
-              # If it's a module or doesn't have table_exists?, check for table directly
-              ActiveRecord::Base.connection.table_exists?("ruby_llm_models") ||
-              ActiveRecord::Base.connection.table_exists?("rubyllm_models") ||
-              ActiveRecord::Base.connection.table_exists?("models")
-            end
-          elsif defined?(RubyLLM) && RubyLLM.const_defined?(:Models)
-            models_class = RubyLLM::Models
-            if models_class.is_a?(Class) && models_class.respond_to?(:table_exists?)
-              models_class.table_exists?
-            else
-              # If it's a module or doesn't have table_exists?, check for table directly
-              ActiveRecord::Base.connection.table_exists?("ruby_llm_models") ||
-              ActiveRecord::Base.connection.table_exists?("rubyllm_models") ||
-              ActiveRecord::Base.connection.table_exists?("models")
-            end
-          else
-            # Try to find the models table directly
-            ActiveRecord::Base.connection.table_exists?("ruby_llm_models") ||
-            ActiveRecord::Base.connection.table_exists?("rubyllm_models") ||
-            ActiveRecord::Base.connection.table_exists?("models")
-          end
-        rescue => e
-          Rails.logger.debug "RubyLLM models table check failed: #{e.message}" if defined?(Rails)
-          false
-        end
-      end
 
       private
 
-      # Load models from RubyLLM models table
+      # Load models from RubyLLM
       def load_models_from_ruby_llm
-        begin
-          # Try different possible model class names
-          model_class = find_ruby_llm_model_class
-          return DEFAULT_MODELS unless model_class
+        return DEFAULT_MODELS unless defined?(RubyLLM) && RubyLLM.respond_to?(:models)
+        
+        models = RubyLLM.models
+        return DEFAULT_MODELS unless models.is_a?(Array) && models.any?
+        
+        convert_rubyllm_models(models)
+      end
 
-          # Load models from the table
-          models = model_class.all.map do |model|
+
+      # Convert RubyLLM.models array to our format
+      def convert_rubyllm_models(models)
+        models.map do |model|
+          # Handle different possible model formats from RubyLLM
+          if model.is_a?(Hash)
             {
-              name: model.name || model.title || model.display_name,
+              name: model[:name] || model[:display_name] || model[:title],
+              value: model[:value] || model[:id] || model[:name],
+              provider: model[:provider] || determine_provider_from_name(model[:name] || model[:value]),
+              description: model[:description] || model[:summary] || ""
+            }
+          elsif model.respond_to?(:name)
+            {
+              name: model.name || model.display_name || model.title,
               value: model.value || model.id || model.name,
-              provider: determine_provider_from_model(model),
+              provider: model.provider || determine_provider_from_name(model.name || model.value),
               description: model.description || model.summary || ""
             }
+          else
+            # Fallback for string models
+            model_name = model.to_s
+            {
+              name: model_name,
+              value: model_name,
+              provider: determine_provider_from_name(model_name),
+              description: ""
+            }
           end
-
-          # Fallback to default if no models found
-          models.any? ? models : DEFAULT_MODELS
-        rescue => e
-          Rails.logger.warn "Failed to load models from RubyLLM: #{e.message}" if defined?(Rails)
-          DEFAULT_MODELS
-        end
+        end.compact
       end
 
-      # Find the RubyLLM model class
-      def find_ruby_llm_model_class
-        return nil unless defined?(RubyLLM)
-
-        # Try different possible class names
-        [
-          RubyLLM::Model,
-          RubyLLM::Models,
-          RubyLLM::ModelRecord,
-          RubyLLM::ModelsRecord
-        ].find do |klass|
-          klass && 
-          klass.is_a?(Class) && 
-          klass.respond_to?(:table_exists?) && 
-          klass.table_exists?
-        end
-      rescue
-        nil
-      end
-
-      # Determine provider from model attributes
-      def determine_provider_from_model(model)
-        # Check various attributes that might indicate the provider
-        name = (model.name || model.value || "").to_s.downcase
-        provider = model.provider if model.respond_to?(:provider)
-        provider ||= model.api_provider if model.respond_to?(:api_provider)
+      # Determine provider from model name
+      def determine_provider_from_name(name)
+        return "unknown" if name.blank?
         
-        # Fallback to name-based detection
-        provider ||= case name
+        name_lower = name.to_s.downcase
+        case name_lower
         when /claude|anthropic/
           "anthropic"
         when /gpt|openai|davinci|curie|babbage|ada/
@@ -178,9 +131,8 @@ module PromptEngine
         else
           "unknown"
         end
-
-        provider.to_s
       end
+
     end
   end
 end

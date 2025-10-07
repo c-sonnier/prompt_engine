@@ -67,10 +67,10 @@
             <% end %>
           </div>
           <div class="form__help">
-            <% if PromptEngine::ModelConfigurationService.ruby_llm_models_table_exists? %>
-              Models are loaded from your RubyLLM models table.
+            <% if defined?(RubyLLM) && RubyLLM.respond_to?(:models) %>
+              Models are loaded from RubyLLM.models.
             <% else %>
-              Using default model configuration. To customize, set up a RubyLLM models table.
+              Using default model configuration. To customize, ensure RubyLLM.models is available.
             <% end %>
           </div>
         </div>
