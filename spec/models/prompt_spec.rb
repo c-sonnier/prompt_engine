@@ -440,6 +440,38 @@ RSpec.describe PromptEngine::Prompt, type: :model do
         prompt.update!(content: "Hello {{name}}")
         expect(prompt.sync_parameters!).to be true
       end
+
+      # Test the refactored private methods
+      describe "private methods" do
+        it "add_new_parameters works correctly" do
+          prompt.update!(content: "Hello {{name}}")
+          prompt.sync_parameters!
+          
+          # Test adding new parameters
+          expect { prompt.send(:add_new_parameters, ["score"]) }.to change { prompt.parameters.count }.by(1)
+          expect(prompt.parameters.find_by(name: "score")).to be_present
+        end
+
+        it "add_new_parameters handles empty array" do
+          expect { prompt.send(:add_new_parameters, []) }.not_to change { prompt.parameters.count }
+        end
+
+        it "remove_orphaned_parameters works correctly" do
+          prompt.update!(content: "Hello {{name}} and {{score}}")
+          prompt.sync_parameters!
+          expect(prompt.parameters.count).to eq(2)
+          
+          expect { prompt.send(:remove_orphaned_parameters, ["score"]) }.to change { prompt.parameters.count }.by(-1)
+          expect(prompt.parameters.find_by(name: "score")).to be_nil
+        end
+
+        it "remove_orphaned_parameters handles empty array" do
+          prompt.sync_parameters!
+          initial_count = prompt.parameters.count
+          
+          expect { prompt.send(:remove_orphaned_parameters, []) }.not_to change { prompt.parameters.count }
+        end
+      end
     end
 
     describe "#render_with_params" do

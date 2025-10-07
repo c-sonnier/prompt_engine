@@ -10,11 +10,13 @@ RSpec.describe PromptEngine::ToolDiscoveryService do
 
   describe '.tool_info' do
     let(:tool_class) { double('ToolClass', name: 'TestTool') }
+    let(:service_instance) { described_class.new }
 
     before do
-      allow(described_class).to receive(:extract_description).and_return('Test description')
-      allow(described_class).to receive(:extract_tool_methods).and_return(['method1', 'method2'])
-      allow(described_class).to receive(:extract_source_location).and_return({ file: 'test.rb', line: 1 })
+      allow(described_class).to receive(:new).and_return(service_instance)
+      allow(service_instance).to receive(:extract_description).and_return('Test description')
+      allow(service_instance).to receive(:extract_tool_methods).and_return(['method1', 'method2'])
+      allow(service_instance).to receive(:extract_source_location).and_return({ file: 'test.rb', line: 1 })
     end
 
     it 'returns tool information hash' do

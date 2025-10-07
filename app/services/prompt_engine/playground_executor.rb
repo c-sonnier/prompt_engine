@@ -1,12 +1,7 @@
 module PromptEngine
-  class PlaygroundExecutor
+  class PlaygroundExecutor < BaseService
     attr_reader :prompt, :provider, :api_key, :parameters
 
-    # Legacy models constant for backward compatibility
-    MODELS = {
-      "anthropic" => "claude-3-5-sonnet-20241022",
-      "openai" => "gpt-4o"
-    }.freeze
 
     # Supported file types and their corresponding RubyLLM methods
     FILE_TYPE_METHODS = {
@@ -26,17 +21,32 @@ module PromptEngine
       @parameters = parameters || {}
     end
 
+    def call
+      execute
+    end
+
     def execute
       validate_inputs!
-
       start_time = Time.current
+      
+      processed_content = prepare_content
+      chat = setup_chat_instance
+      response = execute_chat(chat, processed_content)
+      
+      build_result(response, start_time)
+    rescue => e
+      handle_error(e)
+    end
 
+    private
+
+    def prepare_content
       # Extract files from parameters if present
       files = extract_files_from_parameters
 
       # Replace parameters in prompt content (excluding files)
-      parser = ParameterParser.new(prompt.content)
-      processed_content = parser.replace_parameters(parameters.except(:files, "files"))
+      detector = PromptEngine::VariableDetector.new(prompt.content)
+      processed_content = detector.render(parameters.except(:files, "files"))
       
       # Ensure JSON instruction is present when json_mode is enabled
       if prompt.respond_to?(:json_mode) && prompt.json_mode
@@ -46,6 +56,10 @@ module PromptEngine
         end
       end
 
+      processed_content
+    end
+
+    def setup_chat_instance
       # Configure RubyLLM with the appropriate API key
       configure_ruby_llm
 
@@ -87,6 +101,7 @@ module PromptEngine
       end
 
       # Attach files if provided - try different approaches based on RubyLLM version
+      files = extract_files_from_parameters
       files.each do |file_info|
         file_path = file_info[:file]
 
@@ -101,14 +116,21 @@ module PromptEngine
           chat = chat.with_image(file_path)
         else
           # Fallback: include file path in the prompt content
-          processed_content = "#{processed_content}\n\n[File attached: #{file_path}]"
+          # Note: This would need to be handled in prepare_content if needed
+          Rails.logger.warn("Could not attach file #{file_path} - unsupported method") if defined?(Rails)
         end
       end
 
+      chat
+    end
+
+    def execute_chat(chat, content)
       # Execute the prompt
       # Note: max_tokens may need to be passed differently depending on RubyLLM version
-      response = chat.ask(processed_content)
+      chat.ask(content)
+    end
 
+    def build_result(response, start_time)
       execution_time = (Time.current - start_time).round(3)
 
       # Handle response based on its structure
@@ -127,6 +149,9 @@ module PromptEngine
         0 # Default if token information isn't available
       end
 
+      # Get the model to use - prefer prompt's model, fallback to default for provider
+      model_to_use = prompt.model.presence || default_model_for_provider(provider)
+
       {
         response: response_content,
         execution_time: execution_time,
@@ -134,11 +159,7 @@ module PromptEngine
         model: model_to_use,
         provider: provider
       }
-    rescue => e
-      handle_error(e)
     end
-
-    private
 
     def extract_files_from_parameters
       files = parameters[:files] || parameters["files"] || []
@@ -207,12 +228,57 @@ module PromptEngine
       # Validate API key format
       validate_api_key_format!
 
+      # Validate prompt parameters
+      validate_prompt_parameters!
+
       # Validate files if present in parameters
       files = extract_files_from_parameters
       if files.any?
         files.each do |file_info|
           validate_file(file_info[:file])
         end
+      end
+    end
+
+    def validate_prompt_parameters!
+      # Use the prompt's built-in parameter validation
+      validation = prompt.validate_parameters(parameters)
+      
+      unless validation[:valid]
+        # Create a user-friendly error message
+        missing_params = []
+        invalid_params = []
+        
+        validation[:errors].each do |error|
+          if error.include?("can't be blank") || error.include?("is required")
+            param_name = error.split(" ").first
+            missing_params << param_name
+          else
+            invalid_params << error
+          end
+        end
+        
+        error_parts = []
+        
+        if missing_params.any?
+          if missing_params.length == 1
+            error_parts << "Missing required parameter: #{missing_params.first}"
+          else
+            error_parts << "Missing required parameters: #{missing_params.join(', ')}"
+          end
+        end
+        
+        if invalid_params.any?
+          error_parts.concat(invalid_params)
+        end
+        
+        # Add helpful information about available parameters
+        available_params = prompt.parameters.pluck(:name)
+        if available_params.any?
+          error_parts << "Available parameters: #{available_params.join(', ')}"
+        end
+        
+        raise ArgumentError, error_parts.join(". ")
       end
     end
 
@@ -280,21 +346,13 @@ module PromptEngine
     end
 
     def load_selected_tools(tool_class_names)
-      return [] unless tool_class_names.is_a?(Array)
-      
-      tool_class_names.map do |tool_name|
-        # Try to constantize the tool class name
+      return [] unless tool_class_names.present?
+
+      tool_class_names.map do |class_name|
         begin
-          tool_class = tool_name.constantize
-          # Validate that it's a proper tool
-          if PromptEngine::ToolDiscoveryService.valid_tool?(tool_class)
-            tool_class
-          else
-            Rails.logger.warn("Invalid tool class: #{tool_name}") if defined?(Rails)
-            nil
-          end
+          class_name.constantize
         rescue NameError => e
-          Rails.logger.warn("Tool class not found: #{tool_name} - #{e.message}") if defined?(Rails)
+          Rails.logger.warn("Could not load tool class #{class_name}: #{e.message}") if defined?(Rails)
           nil
         end
       end.compact
@@ -304,31 +362,9 @@ module PromptEngine
       # Re-raise ArgumentError as-is for validation errors
       raise error if error.is_a?(ArgumentError)
 
-      # Check for specific error types and messages
-      error_message = error.message.to_s.downcase
-
-      case error
-      when Net::HTTPUnauthorized
-        raise "Invalid API key"
-      when Net::HTTPTooManyRequests
-        raise "Rate limit exceeded. Please try again later."
-      when Net::HTTPError
-        raise "Network error. Please check your connection and try again."
-      else
-        # Check error message patterns
-        case error_message
-        when /invalid.*api.?key/i, /unauthorized/i, /invalid x-api-key/i
-          raise "Invalid API key. Please check your #{provider.capitalize} API key."
-        when /rate limit/i
-          raise "Rate limit exceeded. Please try again later."
-        when /network/i, /connection/i
-          raise "Network error. Please check your connection and try again."
-        when /model.*not found/i
-          raise "Model not available. Please try a different model."
-        else
-          raise "An error occurred: #{error.message}"
-        end
-      end
+      # Use centralized error handling
+      error_message = PromptEngine::ErrorHandler.handle_api_error(error)
+      raise error_message
     end
   end
 end

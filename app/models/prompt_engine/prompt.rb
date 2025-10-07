@@ -76,33 +76,10 @@ module PromptEngine
     def sync_parameters!
       detected_vars = detect_variables
       existing_names = parameters.pluck(:name)
-
-      # Add new parameters
-      new_vars = detected_vars - existing_names
-      if new_vars.any?
-        # Get max position once, before the loop
-        max_position = parameters.maximum(:position) || 0
-        detector = PromptEngine::VariableDetector.new(content)
-
-        new_vars.each_with_index do |var_name, index|
-          var_info = detector.extract_variables.find { |v| v[:name] == var_name }
-
-          # Skip if parameter already exists (race condition protection)
-          next if parameters.exists?(name: var_name)
-
-          parameters.create!(
-            name: var_name,
-            parameter_type: var_info[:type],
-            required: var_info[:required],
-            position: max_position + index + 1
-          )
-        end
-      end
-
-      # Remove parameters that no longer exist
-      removed_vars = existing_names - detected_vars
-      parameters.where(name: removed_vars).destroy_all if removed_vars.any?
-
+      
+      add_new_parameters(detected_vars - existing_names)
+      remove_orphaned_parameters(existing_names - detected_vars)
+      
       true
     end
 
@@ -310,6 +287,32 @@ module PromptEngine
 
     def generate_slug_from_name
       self.slug ||= name&.parameterize
+    end
+
+    def add_new_parameters(new_vars)
+      return if new_vars.empty?
+
+      # Get max position once, before the loop
+      max_position = parameters.maximum(:position) || 0
+      detector = PromptEngine::VariableDetector.new(content)
+
+      new_vars.each_with_index do |var_name, index|
+        var_info = detector.extract_variables.find { |v| v[:name] == var_name }
+
+        # Skip if parameter already exists (race condition protection)
+        next if parameters.exists?(name: var_name)
+
+        parameters.create!(
+          name: var_name,
+          parameter_type: var_info[:type],
+          required: var_info[:required],
+          position: max_position + index + 1
+        )
+      end
+    end
+
+    def remove_orphaned_parameters(removed_vars)
+      parameters.where(name: removed_vars).destroy_all if removed_vars.any?
     end
   end
 end

@@ -1,29 +1,48 @@
 require 'ruby_llm'
 
 module PromptEngine
-  class ToolDiscoveryService
+  class ToolDiscoveryService < BaseService
     class << self
       # Discover all available RubyLLM::Tool classes in the application
       def discover_tools
-        tools = []
-        
-        # Method 1: Scan tools directory for Ruby files
-        tools.concat(find_tools_in_directory)
-        
-        # Method 2: Search for classes that include RubyLLM::Tool
-        tools.concat(find_tool_classes_by_inclusion)
-        
-        # Method 3: Search for classes that inherit from RubyLLM::Tool
-        tools.concat(find_tool_classes_by_inheritance)
-        
-        # Method 4: Search for classes with "tool" in their name or namespace
-        tools.concat(find_tool_classes_by_name)
-        
-        # Remove duplicates and return tool info
-        tools.uniq { |tool| tool.name }.map do |tool_class|
-          tool_info(tool_class)
-        end
+        new.discover_tools
       end
+
+      # Get tool information for display in UI
+      def tool_info(tool_class)
+        new.tool_info(tool_class)
+      end
+
+      # Validate that a class is a valid tool
+      def valid_tool?(tool_class)
+        new.valid_tool?(tool_class)
+      end
+    end
+
+    def call
+      discover_tools
+    end
+
+    def discover_tools
+      tools = []
+      
+      # Method 1: Scan tools directory for Ruby files
+      tools.concat(find_tools_in_directory)
+      
+      # Method 2: Search for classes that include RubyLLM::Tool
+      tools.concat(find_tool_classes_by_inclusion)
+      
+      # Method 3: Search for classes that inherit from RubyLLM::Tool
+      tools.concat(find_tool_classes_by_inheritance)
+      
+      # Method 4: Search for classes with "tool" in their name or namespace
+      tools.concat(find_tool_classes_by_name)
+      
+      # Remove duplicates and return tool info
+      tools.uniq { |tool| tool.name }.map do |tool_class|
+        tool_info(tool_class)
+      end
+    end
 
       # Get tool information for display in UI
       def tool_info(tool_class)
@@ -197,6 +216,5 @@ module PromptEngine
         
         comment_lines.join(' ').strip.presence
       end
-    end
   end
 end

@@ -1,12 +1,13 @@
 module PromptEngine
   class WorkflowPlaygroundController < ApplicationController
+    include ModelConfigurationConcern
+    include ParameterProcessingConcern
+    
     layout "prompt_engine/admin"
     before_action :set_workflow
 
     def show
-      @settings = PromptEngine::Setting.instance
-      @available_models = @settings.available_models
-      @models_by_provider = @settings.models_by_provider
+      load_model_configuration
       # Get unique parameters from all prompts in the workflow
       @parameters = extract_workflow_parameters
       # Get the first prompt for parameter type checking
@@ -74,8 +75,8 @@ module PromptEngine
         return [] unless prompt
 
         # Extract parameters from only the first prompt's content
-        parser = PromptEngine::ParameterParser.new(prompt.content)
-        prompt_params = parser.extract_parameters.map { |p| p[:name] }
+        detector = PromptEngine::VariableDetector.new(prompt.content)
+        prompt_params = detector.variable_names
 
         # Filter out 'input' since we handle that separately as initial_input
         prompt_params.reject { |param| param.downcase == "input" }
@@ -109,8 +110,8 @@ module PromptEngine
         return false unless prompt
 
         # Extract parameters from the first prompt's content
-        parser = PromptEngine::ParameterParser.new(prompt.content)
-        prompt_params = parser.extract_parameters.map { |p| p[:name] }
+        detector = PromptEngine::VariableDetector.new(prompt.content)
+        prompt_params = detector.variable_names
 
         # Check if it has an 'input' parameter and no file-related parameters
         has_input = prompt_params.include?("input")
@@ -124,25 +125,5 @@ module PromptEngine
       end
     end
 
-    def process_parameters_with_files
-      processed_params = params[:parameters]&.to_unsafe_h || {}
-
-      # Collect all uploaded files, filtering out empty ones
-      uploaded_files = []
-
-      # Add files from the file upload fields
-      if params[:files].present?
-        general_files = params[:files].is_a?(Array) ? params[:files] : [ params[:files] ]
-        uploaded_files.concat(general_files.compact.reject { |f| f.blank? || (f.respond_to?(:original_filename) && f.original_filename.blank?) })
-      end
-
-      # Add files to parameters if any were uploaded
-      # This matches how the regular playground handles files
-      if uploaded_files.any?
-        processed_params[:files] = uploaded_files
-      end
-
-      processed_params
-    end
   end
 end

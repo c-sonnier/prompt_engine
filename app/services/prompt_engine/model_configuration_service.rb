@@ -1,5 +1,5 @@
 module PromptEngine
-  class ModelConfigurationService
+  class ModelConfigurationService < BaseService
     # Default models when RubyLLM models table is not available
     # Updated with latest models from https://api.parsera.org/v1/llm-specs
     DEFAULT_MODELS = [
@@ -33,6 +33,10 @@ module PromptEngine
         load_models_from_ruby_llm
       rescue
         DEFAULT_MODELS
+      end
+
+      def call
+        available_models
       end
 
       # Get models grouped by provider
@@ -73,7 +77,6 @@ module PromptEngine
         end
       end
 
-
       private
 
       # Load models from RubyLLM
@@ -85,7 +88,6 @@ module PromptEngine
         
         convert_rubyllm_models(models)
       end
-
 
       # Convert RubyLLM.models array to our format
       def convert_rubyllm_models(models)
@@ -120,19 +122,12 @@ module PromptEngine
 
       # Determine provider from model name
       def determine_provider_from_name(name)
-        return "unknown" if name.blank?
-        
-        name_lower = name.to_s.downcase
-        case name_lower
-        when /claude|anthropic/
-          "anthropic"
-        when /gpt|openai|davinci|curie|babbage|ada/
-          "openai"
-        else
-          "unknown"
-        end
+        PromptEngine::ProviderDetectionService.from_model_name(name) || "unknown"
       end
+    end
 
+    def call
+      self.class.available_models
     end
   end
 end

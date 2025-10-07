@@ -1,5 +1,7 @@
 module PromptEngine
   class PromptsController < ApplicationController
+    include ModelConfigurationConcern
+    
     before_action :set_prompt, only: [ :show, :edit, :update, :destroy ]
     before_action :load_model_configuration, only: [ :new, :edit ]
 
@@ -16,14 +18,14 @@ module PromptEngine
         .limit(5)
         .includes(:prompt_version)
 
-      # Get evaluation data for this prompt
-      # @eval_sets = @prompt.eval_sets.includes(:test_cases, :eval_runs)
-      # @recent_eval_runs = PromptEngine::EvalRun
-      #   .joins(:eval_set)
-      #   .where(prompt_engine_eval_sets: { prompt_id: @prompt.id })
-      #   .order(created_at: :desc)
-      #   .limit(5)
-      #   .includes(:eval_set, :prompt_version)
+      # Get evaluation data for this prompt (Beta)
+      @eval_sets = @prompt.eval_sets.includes(:test_cases, :eval_runs)
+      @recent_eval_runs = PromptEngine::EvalRun
+        .joins(:eval_set)
+        .where(prompt_engine_eval_sets: { prompt_id: @prompt.id })
+        .order(created_at: :desc)
+        .limit(5)
+        .includes(:eval_set, :prompt_version)
     end
 
     def new
@@ -69,11 +71,6 @@ module PromptEngine
       @prompt = PromptEngine::Prompt.find(params[:id])
     end
 
-    def load_model_configuration
-      @settings = Setting.instance
-      @available_models = @settings.available_models
-      @models_by_provider = @settings.models_by_provider
-    end
 
     def prompt_params
       params.require(:prompt).permit(:name, :slug, :description, :content, :system_message, :model, :temperature, :max_tokens, :status, :json_mode, :tools,

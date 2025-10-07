@@ -141,6 +141,49 @@ Visit `/prompt_engine` in your browser to access the admin interface where you c
 
 ### In Your Application
 
+#### Simple AI Execution (Recommended)
+
+The easiest way to use PromptEngine is with `PromptEngine.execute` - just provide the prompt slug and parameters, and get AI responses instantly:
+
+```ruby
+# Execute a prompt and get AI response (no setup required!)
+result = PromptEngine.execute("customer-support",
+  customer_name: "John", 
+  issue: "Can't login to my account"
+)
+
+puts result[:response]        # => "Hello John, I understand you're having trouble..."
+puts result[:execution_time]  # => 1.234
+puts result[:token_count]     # => 25
+puts result[:model]          # => "gpt-3.5-turbo"
+puts result[:provider]       # => "openai"
+```
+
+**Parameter Validation**: PromptEngine automatically validates required parameters before making API calls:
+
+```ruby
+# Missing required parameters will raise clear errors
+begin
+  result = PromptEngine.execute("customer-support", customer_name: "John")
+rescue ArgumentError => e
+  puts e.message  # => "Missing required parameter: issue. Available parameters: customer_name, issue"
+end
+
+# Invalid parameter types are also caught
+begin
+  result = PromptEngine.execute("customer-support", 
+    customer_name: "John", 
+    issue: 123  # Should be a string
+  )
+rescue ArgumentError => e
+  puts e.message  # => "issue must be a string"
+end
+```
+
+#### Advanced Usage with Manual Rendering
+
+For more control, you can render prompts manually and integrate with specific LLM clients:
+
 ```ruby
 # Render a prompt with variables (defaults to active prompts only)
 rendered = PromptEngine.render("customer-support",
@@ -246,6 +289,27 @@ puts result[:provider]       # => "openai"
 # Execute without parameters
 result = PromptEngine.execute("simple-greeting")
 puts result[:response]       # => "Hello! How can I help you today?"
+```
+
+**Parameter Validation**: The method automatically validates required parameters before making API calls. If parameters are missing or invalid, it raises an `ArgumentError` with a clear message:
+
+```ruby
+# Missing required parameters
+begin
+  PromptEngine.execute("customer-support", customer_name: "John")
+rescue ArgumentError => e
+  puts e.message  # => "Missing required parameter: issue. Available parameters: customer_name, issue"
+end
+
+# Invalid parameter types
+begin
+  PromptEngine.execute("customer-support", 
+    customer_name: "John", 
+    issue: 123  # Should be a string
+  )
+rescue ArgumentError => e
+  puts e.message  # => "issue must be a string"
+end
 ```
 
 **Note:** This method requires API keys to be configured in the settings. It will raise an `ArgumentError` if the required API key is not configured.

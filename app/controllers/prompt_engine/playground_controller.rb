@@ -1,12 +1,13 @@
 module PromptEngine
   class PlaygroundController < ApplicationController
+    include ModelConfigurationConcern
+    include ParameterProcessingConcern
+    
     before_action :set_prompt
 
     def show
-      @parameters = ParameterParser.new(@prompt.content).extract_parameters.map { |p| p[:name] }
-      @settings = Setting.instance
-      @available_models = @settings.available_models
-      @models_by_provider = @settings.models_by_provider
+      @parameters = PromptEngine::VariableDetector.new(@prompt.content).variable_names
+      load_model_configuration
       
       # Determine provider and model from prompt configuration
       @provider = determine_provider_from_model(@prompt.model)
@@ -52,8 +53,8 @@ module PromptEngine
         @provider = result[:provider]
 
         # Store the rendered prompt for display
-        parser = ParameterParser.new(@prompt.content)
-        @rendered_prompt = parser.replace_parameters(params[:parameters])
+        detector = PromptEngine::VariableDetector.new(@prompt.content)
+        @rendered_prompt = detector.render(params[:parameters])
 
         # Save the playground run result
         @prompt.current_version.playground_run_results.create!(
@@ -81,41 +82,9 @@ module PromptEngine
       @prompt = Prompt.find(params[:id])
     end
 
-    def process_parameters_with_files
-      processed_params = params[:parameters]&.to_unsafe_h || {}
-
-      # Collect all uploaded files, filtering out empty ones
-      uploaded_files = []
-
-      # Add files from the general file upload field
-      if params[:files].present?
-        general_files = params[:files].is_a?(Array) ? params[:files] : [ params[:files] ]
-        uploaded_files.concat(general_files.compact.reject { |f| f.blank? || (f.respond_to?(:original_filename) && f.original_filename.blank?) })
-      end
-
-      # Add files to parameters if any were uploaded
-      if uploaded_files.any?
-        processed_params[:files] = uploaded_files
-      end
-
-      processed_params
-    end
 
     def determine_provider_from_model(model)
-      return nil if model.blank?
-      
-      model_lower = model.downcase
-      
-      # Check for Anthropic models
-      if model_lower.include?("claude") || model_lower.include?("anthropic")
-        "anthropic"
-      # Check for OpenAI models
-      elsif model_lower.include?("gpt") || model_lower.include?("openai") || model_lower.include?("davinci") || model_lower.include?("curie") || model_lower.include?("babbage") || model_lower.include?("ada")
-        "openai"
-      else
-        # Default to anthropic for unknown models
-        "anthropic"
-      end
+      PromptEngine::ProviderDetectionService.from_model_name(model) || "anthropic"
     end
   end
 end
