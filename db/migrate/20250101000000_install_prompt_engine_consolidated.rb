@@ -34,7 +34,6 @@ class InstallPromptEngineConsolidated < ActiveRecord::Migration[8.0]
 
     # Add tools column to prompts if it doesn't exist
     add_column :prompt_engine_prompts, :tools, :json, null: false unless column_exists?(:prompt_engine_prompts, :tools)
-    add_index :prompt_engine_prompts, :tools unless index_exists?(:prompt_engine_prompts, :tools)
 
     # Create prompt_engine_parameters table
     create_table :prompt_engine_parameters, if_not_exists: true do |t|
@@ -81,7 +80,6 @@ class InstallPromptEngineConsolidated < ActiveRecord::Migration[8.0]
 
     # Add tools column to prompt_versions if it doesn't exist
     add_column :prompt_engine_prompt_versions, :tools, :json, null: false unless column_exists?(:prompt_engine_prompt_versions, :tools)
-    add_index :prompt_engine_prompt_versions, :tools unless index_exists?(:prompt_engine_prompt_versions, :tools)
 
     # Create prompt_engine_playground_run_results table
     create_table :prompt_engine_playground_run_results, if_not_exists: true do |t|
