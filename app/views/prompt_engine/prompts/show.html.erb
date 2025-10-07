@@ -165,14 +165,23 @@ rendered.model          # => "<%= @prompt.model || "gpt-4" %>"
 rendered.temperature    # => <%= @prompt.temperature || "0.7" %>
 rendered.max_tokens     # => <%= @prompt.max_tokens || "1000" %>
 
-# Direct integration with OpenAI
-client = OpenAI::Client.new(access_token: ENV["OPENAI_API_KEY"])
+# Option 1: Simple execution (recommended)
+result = PromptEngine.execute("<%= @prompt.slug %>"<% 
+  if @prompt.parameters.any?
+    @prompt.parameters.ordered.each_with_index do |param, index| %>,
+  <%= param.name %>: <%= param.example_value.presence || "\"value#{index + 1}\"" %><% end 
+  else %> # No variables needed<% end %>)
+
+# Option 2: Direct client integration
+# OpenAI
+client = OpenAI::Client.new(api_key: ENV["OPENAI_API_KEY"])
 response = rendered.execute_with(client)
 
-# Or use explicit parameters
-response = client.chat(parameters: rendered.to_openai_params)
+# Anthropic
+client = Anthropic::Client.new(api_key: ENV["ANTHROPIC_API_KEY"])
+response = rendered.execute_with(client)
 
-# With additional options (tools, functions, etc.)
+# Option 3: Advanced options
 response = rendered.execute_with(client,
   tools: [...],
   response_format: { type: "json_object" }
