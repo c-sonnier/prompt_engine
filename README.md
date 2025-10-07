@@ -15,6 +15,7 @@ PromptEngine is currently being worked on actively to prepare for a proper initi
 
 - 🚀 [Live Demo App](https://prompt-engine-demo.avi.nyc)
 - 📖 [Documentation](https://prompt-engine-docs.avi.nyc/)
+- 🧪 [Manual Tests](manual_tests/) - Test scripts to verify `execute_with` method works with different AI clients
 
 ## Why PromptEngine?
 
