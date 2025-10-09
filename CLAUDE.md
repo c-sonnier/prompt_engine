@@ -19,6 +19,7 @@ bundle exec rake setup                      # Complete setup for development and
 ```
 
 This setup task:
+
 - Removes existing migrations and databases
 - Installs engine migrations into dummy app
 - Creates and migrates both development and test databases
@@ -41,7 +42,8 @@ bundle exec rails db:create db:migrate db:seed      # Setup development database
 RAILS_ENV=test bundle exec rails db:create db:migrate  # Setup test database
 ```
 
-**Note**: Engine migrations are NOT automatically loaded. You must explicitly run `rails prompt_engine:install:migrations` before running `db:migrate`.
+**Note**: Engine migrations are NOT automatically loaded. You must explicitly run
+`rails prompt_engine:install:migrations` before running `db:migrate`.
 
 ### Running Tests
 
@@ -69,11 +71,13 @@ bundle exec rubocop -a                      # Auto-correct offenses
 ### Rake Tasks
 
 ```bash
-bundle exec rake setup                      # Setup dummy app for development
+bundle exec rake setup                      # Setup dummy app for development (shortcut)
 bundle exec rake spec                       # Run all specs
-bundle exec rake prompt_engine:setup        # Alternative setup command
+bundle exec rake prompt_engine:setup        # Full setup (same as `rake setup`)
 bin/rails prompt_engine:install:migrations  # Install engine migrations in host app
 ```
+
+**Note**: `rake setup` is a shortcut that calls `app:prompt_engine:setup` under the hood.
 
 ## Architecture Overview
 
@@ -102,22 +106,30 @@ bin/rails prompt_engine:install:migrations  # Install engine migrations in host 
 
 ### Service Objects
 
-**VariableDetector**
+**VariableDetector** (`app/services/prompt_engine/variable_detector.rb`)
 
-- Extracts `{{variables}}` from prompt content
-- Infers types from variable names (e.g., `_at` → datetime)
+- Extracts `{{variables}}` from prompt content and system messages
+- Infers types from variable names (e.g., `_at` → datetime, `_count` → integer)
 - Validates provided variables against template
+- Automatically creates/updates Parameter records
 
-**PlaygroundExecutor**
+**PlaygroundExecutor** (`app/services/prompt_engine/playground_executor.rb`)
 
 - Handles AI provider communication (Anthropic, OpenAI)
 - Manages API keys from Rails credentials
 - Formats requests and parses responses
 - Supports PDF file attachments for document-based prompts
+- Used by Playground feature for testing prompts
+
+**EvaluationRunner** (`app/services/prompt_engine/evaluation_runner.rb`)
+
+- Executes test cases against prompts
+- Handles evaluation logic for A/B testing
+- Coordinates with AI providers for evaluation runs
 
 ### Testing Philosophy
 
-Read `.ai/RSPEC-TESTS.md` before writing tests. Key principles:
+Key principles:
 
 - Use request specs instead of controller specs for testing controllers
 - Test full request/response cycle
@@ -128,6 +140,7 @@ Read `.ai/RSPEC-TESTS.md` before writing tests. Key principles:
 - Test edge cases and validations
 - Use `let` for lazy-loading test data
 - Organize with `describe` and `context` blocks
+- VCR for recording external API interactions
 
 ### CSS Architecture
 
@@ -179,15 +192,28 @@ Read `.ai/RSPEC-TESTS.md` before writing tests. Key principles:
 
 ### Engine Integration
 
-The engine is designed to be mounted in Rails applications:
+The engine is designed to be mounted in Rails applications. The main API is the
+`PromptEngine.render` method defined in `lib/prompt_engine.rb`:
 
 ```ruby
 # Host app's routes.rb
 mount PromptEngine::Engine => "/prompt_engine"
 
 # Usage in application
-PromptEngine.render(:prompt_name, variables: { user_name: "John" })
+rendered = PromptEngine.render(:prompt_name, variables: { user_name: "John" })
+# Returns a PromptEngine::RenderedPrompt instance
+
+# Can also find prompts directly
+prompt = PromptEngine.find(:prompt_name, status: "active")
+prompt = PromptEngine[:prompt_name]  # Shortcut for active prompts
 ```
+
+**Key Implementation Details**:
+
+- Default status filter is `"active"` unless overridden
+- Version-specific renders ignore status filters
+- Options like `model`, `temperature`, `max_tokens` can override prompt defaults
+- See README.md for complete API documentation
 
 ## File Structure
 
@@ -218,6 +244,7 @@ rails credentials:edit
 ```
 
 Add:
+
 ```yaml
 openai:
   api_key: sk-your-openai-api-key
@@ -243,12 +270,28 @@ bin/rails db:migrate
 PromptEngine.render(:prompt_name, variables: { user_name: "John" })
 ```
 
+## Known Technical Debt
+
+**JavaScript Integration** (see `.ai/REQUIRED_CHANGES.md`):
+
+- Inline JavaScript needs extraction to Stimulus controllers
+- Missing install generator for host app integration
+- No `app/javascript/prompt_engine/` structure yet
+- Controllers need proper `prompt-engine--*` naming
+
+**Required for Production**:
+
+- Create install generator with JavaScript/CSS integration
+- Extract inline scripts to proper Stimulus controllers
+- Add engine asset configuration to `lib/prompt_engine/engine.rb`
+
 ## Current Status
 
-**Implemented**: Core CRUD, version control, parameter management, playground, admin UI
+**Implemented**: Core CRUD, version control, parameter management, playground, admin UI, evaluation
+runner
 
-**In Progress**: Analytics dashboard, evaluation suite, API endpoints
+**In Progress**: Stimulus controller refactoring, install generator
 
-**Planned**: Multi-language support, A/B testing, prompt marketplace
+**Planned**: Multi-language support, A/B testing enhancements, cost tracking
 
-See `docs/SPEC.md` for complete product vision and `docs/ARCHITECTURE.md` for detailed technical documentation.
+See `.ai/` directory for detailed technical planning documents.

@@ -12,6 +12,21 @@ module PromptEngine
     config.autoload_paths += %W[#{config.root}/app/services]
     config.autoload_paths += %W[#{config.root}/app/clients]
 
+    initializer "prompt_engine.assets" do |app|
+      next if app.root.to_s == root.to_s
+      next unless app.config.respond_to?(:assets)
+
+      stylesheets_path = root.join("app/assets/stylesheets")
+      images_path = root.join("app/assets/images")
+
+      app.config.assets.paths << stylesheets_path unless app.config.assets.paths.include?(stylesheets_path)
+      app.config.assets.paths << images_path unless app.config.assets.paths.include?(images_path)
+
+      unless app.config.assets.precompile.include?("prompt_engine/application.css")
+        app.config.assets.precompile += %w[prompt_engine/application.css]
+      end
+    end
+
     # IMPORTANT: Migrations are NOT automatically loaded!
     # Users must explicitly install migrations using:
     #   bin/rails prompt_engine:install:migrations
