@@ -1,7 +1,7 @@
 module PromptEngine
   class PromptsController < ApplicationController
     include ModelConfigurationConcern
-    
+
     before_action :set_prompt, only: [ :show, :edit, :update, :destroy ]
     before_action :load_model_configuration, only: [ :new, :edit ]
 
@@ -38,6 +38,7 @@ module PromptEngine
       if @prompt.save
         redirect_to prompt_path(@prompt), notice: "Prompt was successfully created."
       else
+        load_model_configuration
         render :new, status: :unprocessable_entity
       end
     end
@@ -56,6 +57,7 @@ module PromptEngine
         action_message = make_active ? "updated and made active" : "updated (saved as inactive version)"
         redirect_to prompt_path(@prompt), notice: "Prompt was successfully #{action_message}."
       else
+        load_model_configuration
         render :edit, status: :unprocessable_entity
       end
     end
