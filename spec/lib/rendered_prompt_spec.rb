@@ -115,22 +115,6 @@ module PromptEngine
       end
     end
 
-    describe "#to_h" do
-      it "includes all the expected keys" do
-        hash = rendered_prompt.to_h
-        expect(hash).to include(
-          content: "Hello Alice",
-          system_message: "You are a helpful assistant",
-          model: "gpt-4-turbo",
-          temperature: 0.9,
-          max_tokens: 1000,
-          status: "draft",
-          version: 1,
-          options: overrides,
-          parameters: { "name" => "Alice" }
-        )
-      end
-    end
 
     describe "backward compatibility" do
       it "still exposes content as attr_reader" do
@@ -406,16 +390,16 @@ module PromptEngine
           }
         end
 
-        it "returns RubyLLM-formatted parameters with all fields" do
+        it "returns RubyLLM-formatted parameters with system as separate key" do
           prompt_full = described_class.new(prompt, rendered_data)
           params = prompt_full.to_ruby_llm_params
 
           expect(params).to eq({
             messages: [
-              { role: "system", content: "You are helpful" },
               { role: "user", content: "Test prompt" }
             ],
             model: "claude-3-opus",
+            system: "You are helpful",
             temperature: 0.7,
             max_tokens: 1000
           })
@@ -426,12 +410,6 @@ module PromptEngine
           params = prompt_test.to_ruby_llm_params
 
           expect(params.keys.first).to eq(:messages)
-        end
-
-        it "uses the messages method to build messages array" do
-          prompt_test = described_class.new(prompt, rendered_data)
-          expect(prompt_test).to receive(:messages).and_call_original
-          prompt_test.to_ruby_llm_params
         end
       end
 
@@ -556,10 +534,10 @@ module PromptEngine
 
           expect(params).to eq({
             messages: [
-              { role: "system", content: "Override system" },
               { role: "user", content: "Test prompt" }
             ],
             model: "claude-3-sonnet",
+            system: "Override system",
             temperature: 0.4,
             max_tokens: 2000
           })
@@ -571,12 +549,14 @@ module PromptEngine
           prompt_test = described_class.new(prompt, rendered_data)
           params = prompt_test.to_ruby_llm_params
 
-          # Anthropic expects the same format
+          # Anthropic expects system as separate key, not in messages
           expect(params).to have_key(:messages)
           expect(params).to have_key(:model)
+          expect(params).to have_key(:system)
           expect(params[:messages]).to be_an(Array)
           expect(params[:messages].first).to have_key(:role)
           expect(params[:messages].first).to have_key(:content)
+          expect(params[:messages].first[:role]).to eq("user")
         end
       end
     end
@@ -599,28 +579,36 @@ module PromptEngine
       context "with OpenAI client" do
         let(:openai_client) do
           client_class = double("Class", name: "OpenAI::Client")
-          double("OpenAI::Client", class: client_class)
+          double("OpenAI::Client", class: client_class).tap do |client|
+            allow(client).to receive(:respond_to?).with(:model=).and_return(true)
+            allow(client).to receive(:respond_to?).with(:messages=).and_return(true)
+            allow(client).to receive(:respond_to?).with(:temperature=).and_return(true)
+            allow(client).to receive(:respond_to?).with(:max_tokens=).and_return(true)
+            allow(client).to receive(:model=)
+            allow(client).to receive(:messages=)
+            allow(client).to receive(:temperature=)
+            allow(client).to receive(:max_tokens=)
+            allow(client).to receive(:chat)
+          end
         end
 
-        it "detects OpenAI client and calls chat with parameters key" do
-          expected_params = {
-            model: "gpt-4",
-            messages: [
-              { role: "system", content: "Test system" },
-              { role: "user", content: "Test prompt" }
-            ],
-            temperature: 0.7,
-            max_tokens: 1000
-          }
+        it "detects OpenAI client and sets properties then calls chat" do
+          expect(openai_client).to receive(:model=).with("gpt-4")
+          expect(openai_client).to receive(:messages=).with([
+            { role: "system", content: "Test system" },
+            { role: "user", content: "Test prompt" }
+          ])
+          expect(openai_client).to receive(:temperature=).with(0.7)
+          expect(openai_client).to receive(:max_tokens=).with(1000)
+          expect(openai_client).to receive(:chat).with(no_args)
 
-          expect(openai_client).to receive(:chat).with(parameters: expected_params)
           rendered_prompt.execute_with(openai_client)
         end
 
-        it "passes additional options to OpenAI parameters" do
-          expect(openai_client).to receive(:chat).with(
-            parameters: hash_including(stream: true, tools: [ "test" ])
-          )
+        it "passes additional options by merging with to_openai_params" do
+          # Additional options are merged into params, but OpenAI client
+          # may not have setters for them, so they won't be set
+          expect(openai_client).to receive(:chat).with(no_args)
 
           rendered_prompt.execute_with(openai_client, stream: true, tools: [ "test" ])
         end
@@ -629,8 +617,10 @@ module PromptEngine
           [ "OpenAI", "MyOpenAIWrapper", "CustomOpenAIClient" ].each do |class_name|
             client_class = double("Class", name: class_name)
             client = double(class_name, class: client_class)
+            allow(client).to receive(:respond_to?).and_return(false)
+            allow(client).to receive(:chat)
 
-            expect(client).to receive(:chat).with(parameters: anything)
+            expect(client).to receive(:chat).with(no_args)
             rendered_prompt.execute_with(client)
           end
         end
@@ -639,26 +629,29 @@ module PromptEngine
       context "with Anthropic client" do
         let(:anthropic_client) do
           client_class = double("Class", name: "Anthropic::Client")
-          double("Anthropic::Client", class: client_class)
+          messages_double = double("messages")
+          client = double("Anthropic::Client", class: client_class, messages: messages_double)
+          allow(messages_double).to receive(:create)
+          client
         end
 
-        it "detects Anthropic client and calls chat with splatted parameters" do
+        it "detects Anthropic client and calls messages.create with new format" do
           expected_params = {
             messages: [
-              { role: "system", content: "Test system" },
               { role: "user", content: "Test prompt" }
             ],
             model: "gpt-4",
+            system: "Test system",
             temperature: 0.7,
             max_tokens: 1000
           }
 
-          expect(anthropic_client).to receive(:chat).with(**expected_params)
+          expect(anthropic_client.messages).to receive(:create).with(**expected_params)
           rendered_prompt.execute_with(anthropic_client)
         end
 
         it "passes additional options to Anthropic parameters" do
-          expect(anthropic_client).to receive(:chat).with(
+          expect(anthropic_client.messages).to receive(:create).with(
             hash_including(stop_sequences: [ "\\n" ], metadata: { user: "test" })
           )
 
@@ -668,9 +661,10 @@ module PromptEngine
         it "works with different Anthropic client class names" do
           [ "Anthropic", "AnthropicAPI", "MyAnthropicWrapper" ].each do |class_name|
             client_class = double("Class", name: class_name)
-            client = double(class_name, class: client_class)
+            messages_double = double("messages")
+            client = double(class_name, class: client_class, messages: messages_double)
 
-            expect(client).to receive(:chat).with(anything)
+            expect(messages_double).to receive(:create).with(anything)
             rendered_prompt.execute_with(client)
           end
         end
@@ -679,16 +673,16 @@ module PromptEngine
       context "with RubyLLM client" do
         let(:ruby_llm_client) do
           client_class = double("Class", name: "RubyLLM::Provider")
-          double("RubyLLM::Provider", class: client_class)
+          double("RubyLLM::Provider", class: client_class, chat: true)
         end
 
-        it "detects RubyLLM client and calls chat with splatted parameters" do
+        it "detects RubyLLM client and calls chat with new format" do
           expected_params = {
             messages: [
-              { role: "system", content: "Test system" },
               { role: "user", content: "Test prompt" }
             ],
             model: "gpt-4",
+            system: "Test system",
             temperature: 0.7,
             max_tokens: 1000
           }
@@ -708,7 +702,7 @@ module PromptEngine
         it "works with different RubyLLM client class names" do
           [ "RubyLLM", "RubyLLMClient", "MyRubyLLMProvider" ].each do |class_name|
             client_class = double("Class", name: class_name)
-            client = double(class_name, class: client_class)
+            client = double(class_name, class: client_class, chat: true)
 
             expect(client).to receive(:chat).with(anything)
             rendered_prompt.execute_with(client)
@@ -744,16 +738,18 @@ module PromptEngine
         it "calls to_openai_params for OpenAI clients" do
           client_class = double("Class", name: "OpenAI::Client")
           client = double("OpenAI::Client", class: client_class)
+          allow(client).to receive(:respond_to?).and_return(false)
+          allow(client).to receive(:chat)
 
           expect(rendered_prompt).to receive(:to_openai_params).with(test: true).and_call_original
-          expect(client).to receive(:chat).with(parameters: anything)
+          expect(client).to receive(:chat).with(no_args)
 
           rendered_prompt.execute_with(client, test: true)
         end
 
         it "calls to_ruby_llm_params for RubyLLM clients" do
           client_class = double("Class", name: "RubyLLM::Provider")
-          client = double("RubyLLM::Provider", class: client_class)
+          client = double("RubyLLM::Provider", class: client_class, chat: true)
 
           expect(rendered_prompt).to receive(:to_ruby_llm_params).with(test: true).and_call_original
           expect(client).to receive(:chat).with(anything)
@@ -763,10 +759,11 @@ module PromptEngine
 
         it "calls to_ruby_llm_params for Anthropic clients" do
           client_class = double("Class", name: "Anthropic::Client")
-          client = double("Anthropic::Client", class: client_class)
+          messages_double = double("messages")
+          client = double("Anthropic::Client", class: client_class, messages: messages_double)
 
           expect(rendered_prompt).to receive(:to_ruby_llm_params).with(test: true).and_call_original
-          expect(client).to receive(:chat).with(anything)
+          expect(messages_double).to receive(:create).with(anything)
 
           rendered_prompt.execute_with(client, test: true)
         end

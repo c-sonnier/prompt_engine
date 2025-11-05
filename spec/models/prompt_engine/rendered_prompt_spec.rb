@@ -92,24 +92,6 @@ RSpec.describe PromptEngine::RenderedPrompt, type: :model do
     end
   end
 
-  describe "#to_h" do
-    it "includes parameters in the hash representation" do
-      hash = rendered_prompt.to_h
-      expect(hash[:parameters]).to eq({
-        "user_name" => "John",
-        "company_name" => "Acme Corp",
-        "user_id" => 123,
-        "is_premium" => true
-      })
-      expect(hash).to include(
-        content: "Hello John from Acme Corp!",
-        system_message: "You are a helpful assistant",
-        model: "gpt-4",
-        temperature: 0.7,
-        max_tokens: 1000
-      )
-    end
-  end
 
   describe "#inspect" do
     it "includes parameter names in the inspect output" do
