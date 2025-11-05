@@ -105,7 +105,7 @@ module PromptEngine
             steps: {}
           }
         }
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(response.body).to include("Please fix the following errors")
       end
     end

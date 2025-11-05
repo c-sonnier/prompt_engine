@@ -10,34 +10,34 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_05_172202) do
+ActiveRecord::Schema[8.1].define(version: 2025_11_05_172202) do
   create_table "prompt_engine_eval_results", force: :cascade do |t|
-    t.integer "eval_run_id", null: false
-    t.integer "test_case_id", null: false
     t.text "actual_output"
-    t.boolean "passed", default: false
-    t.integer "execution_time_ms"
-    t.text "error_message"
     t.datetime "created_at", null: false
+    t.text "error_message"
+    t.integer "eval_run_id", null: false
+    t.integer "execution_time_ms"
+    t.boolean "passed", default: false
+    t.integer "test_case_id", null: false
     t.datetime "updated_at", null: false
     t.index ["eval_run_id"], name: "index_prompt_engine_eval_results_on_eval_run_id"
     t.index ["test_case_id"], name: "index_prompt_engine_eval_results_on_test_case_id"
   end
 
   create_table "prompt_engine_eval_runs", force: :cascade do |t|
-    t.integer "eval_set_id", null: false
-    t.integer "prompt_version_id", null: false
-    t.integer "status", default: 0, null: false
-    t.datetime "started_at"
     t.datetime "completed_at"
-    t.integer "total_count", default: 0
-    t.integer "passed_count", default: 0
-    t.integer "failed_count", default: 0
-    t.text "error_message"
-    t.string "openai_run_id"
-    t.string "openai_file_id"
-    t.string "report_url"
     t.datetime "created_at", null: false
+    t.text "error_message"
+    t.integer "eval_set_id", null: false
+    t.integer "failed_count", default: 0
+    t.string "openai_file_id"
+    t.string "openai_run_id"
+    t.integer "passed_count", default: 0
+    t.integer "prompt_version_id", null: false
+    t.string "report_url"
+    t.datetime "started_at"
+    t.integer "status", default: 0, null: false
+    t.integer "total_count", default: 0
     t.datetime "updated_at", null: false
     t.index ["eval_set_id"], name: "index_prompt_engine_eval_runs_on_eval_set_id"
     t.index ["openai_run_id"], name: "index_prompt_engine_eval_runs_on_openai_run_id"
@@ -45,13 +45,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_05_172202) do
   end
 
   create_table "prompt_engine_eval_sets", force: :cascade do |t|
-    t.string "name", null: false
-    t.text "description"
-    t.integer "prompt_id", null: false
-    t.string "openai_eval_id"
-    t.string "grader_type", default: "exact_match", null: false
-    t.json "grader_config"
     t.datetime "created_at", null: false
+    t.text "description"
+    t.json "grader_config"
+    t.string "grader_type", default: "exact_match", null: false
+    t.string "name", null: false
+    t.string "openai_eval_id"
+    t.integer "prompt_id", null: false
     t.datetime "updated_at", null: false
     t.index ["grader_type"], name: "index_prompt_engine_eval_sets_on_grader_type"
     t.index ["openai_eval_id"], name: "index_prompt_engine_eval_sets_on_openai_eval_id"
@@ -60,35 +60,35 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_05_172202) do
   end
 
   create_table "prompt_engine_parameters", force: :cascade do |t|
-    t.integer "prompt_id", null: false
-    t.string "name", null: false
-    t.text "description"
-    t.string "parameter_type", default: "string", null: false
-    t.boolean "required", default: true, null: false
-    t.string "default_value"
-    t.json "validation_rules"
-    t.string "example_value"
-    t.integer "position"
     t.datetime "created_at", null: false
+    t.string "default_value"
+    t.text "description"
+    t.string "example_value"
+    t.string "name", null: false
+    t.string "parameter_type", default: "string", null: false
+    t.integer "position"
+    t.integer "prompt_id", null: false
+    t.boolean "required", default: true, null: false
     t.datetime "updated_at", null: false
+    t.json "validation_rules"
     t.index ["position"], name: "index_prompt_engine_parameters_on_position"
     t.index ["prompt_id", "name"], name: "index_prompt_engine_parameters_on_prompt_id_and_name", unique: true
     t.index ["prompt_id"], name: "index_prompt_engine_parameters_on_prompt_id"
   end
 
   create_table "prompt_engine_playground_run_results", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.float "execution_time", null: false
+    t.integer "max_tokens"
+    t.string "model", null: false
+    t.text "parameters"
     t.integer "prompt_version_id", null: false
     t.string "provider", null: false
-    t.string "model", null: false
     t.text "rendered_prompt", null: false
-    t.text "system_message"
-    t.text "parameters"
     t.text "response", null: false
-    t.float "execution_time", null: false
-    t.integer "token_count"
+    t.text "system_message"
     t.float "temperature"
-    t.integer "max_tokens"
-    t.datetime "created_at", null: false
+    t.integer "token_count"
     t.datetime "updated_at", null: false
     t.index ["created_at"], name: "index_prompt_engine_playground_run_results_on_created_at"
     t.index ["prompt_version_id"], name: "idx_on_prompt_version_id_747dcd550d"
@@ -96,21 +96,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_05_172202) do
   end
 
   create_table "prompt_engine_prompt_versions", force: :cascade do |t|
-    t.integer "prompt_id", null: false
-    t.integer "version_number", null: false
+    t.boolean "active", default: false, null: false
+    t.text "change_description"
     t.text "content", null: false
-    t.text "system_message"
-    t.string "model"
-    t.float "temperature"
+    t.datetime "created_at", null: false
+    t.string "created_by"
+    t.boolean "json_mode", default: false, null: false
     t.integer "max_tokens"
     t.json "metadata"
-    t.string "created_by"
-    t.text "change_description"
-    t.datetime "created_at", null: false
+    t.string "model"
+    t.integer "prompt_id", null: false
+    t.text "system_message"
+    t.float "temperature"
+    t.json "tools", default: [], null: false
     t.datetime "updated_at", null: false
-    t.boolean "json_mode", default: false, null: false
-    t.boolean "active", default: false, null: false
-    t.json "tools", null: false
+    t.integer "version_number", null: false
     t.index ["active"], name: "index_prompt_engine_prompt_versions_on_active"
     t.index ["json_mode"], name: "index_prompt_engine_prompt_versions_on_json_mode"
     t.index ["prompt_id", "version_number"], name: "index_prompt_versions_on_prompt_and_version", unique: true
@@ -119,66 +119,66 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_05_172202) do
   end
 
   create_table "prompt_engine_prompts", force: :cascade do |t|
-    t.string "name"
-    t.text "description"
     t.text "content"
-    t.text "system_message"
-    t.string "model"
-    t.float "temperature"
-    t.integer "max_tokens"
-    t.string "status"
-    t.json "metadata"
-    t.integer "versions_count", default: 0, null: false
-    t.string "slug"
     t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
+    t.text "description"
     t.boolean "json_mode", default: false, null: false
+    t.integer "max_tokens"
+    t.json "metadata"
+    t.string "model"
+    t.string "name"
+    t.string "slug"
+    t.string "status"
+    t.text "system_message"
+    t.float "temperature"
     t.json "tools", default: [], null: false
+    t.datetime "updated_at", null: false
+    t.integer "versions_count", default: 0, null: false
     t.index ["json_mode"], name: "index_prompt_engine_prompts_on_json_mode"
     t.index ["slug"], name: "index_prompt_engine_prompts_on_slug", unique: true
   end
 
   create_table "prompt_engine_settings", force: :cascade do |t|
-    t.text "openai_api_key"
     t.text "anthropic_api_key"
-    t.json "preferences"
     t.datetime "created_at", null: false
+    t.text "openai_api_key"
+    t.json "preferences"
     t.datetime "updated_at", null: false
   end
 
   create_table "prompt_engine_test_cases", force: :cascade do |t|
-    t.integer "eval_set_id", null: false
-    t.json "input_variables", null: false
-    t.text "expected_output", null: false
-    t.text "description"
     t.datetime "created_at", null: false
+    t.text "description"
+    t.integer "eval_set_id", null: false
+    t.text "expected_output", null: false
+    t.json "input_variables", null: false
     t.datetime "updated_at", null: false
     t.index ["eval_set_id"], name: "index_prompt_engine_test_cases_on_eval_set_id"
   end
 
   create_table "prompt_engine_workflow_runs", force: :cascade do |t|
-    t.integer "workflow_id", null: false
+    t.datetime "created_at", null: false
+    t.text "error_message"
+    t.decimal "execution_time", precision: 8, scale: 3
     t.text "initial_input"
     t.json "input_variables"
     t.json "results"
     t.integer "status", default: 0, null: false
-    t.decimal "execution_time", precision: 8, scale: 3
-    t.text "error_message"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
     t.string "title"
+    t.datetime "updated_at", null: false
+    t.integer "workflow_id", null: false
     t.index ["created_at"], name: "index_prompt_engine_workflow_runs_on_created_at"
     t.index ["status"], name: "index_prompt_engine_workflow_runs_on_status"
     t.index ["workflow_id"], name: "index_prompt_engine_workflow_runs_on_workflow_id"
   end
 
   create_table "prompt_engine_workflows", force: :cascade do |t|
-    t.string "name", null: false
-    t.json "steps", null: false
     t.json "conditions"
     t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
+    t.string "name", null: false
     t.boolean "pass_original_input", default: true, null: false
+    t.json "steps", null: false
+    t.datetime "updated_at", null: false
     t.index ["name"], name: "index_prompt_engine_workflows_on_name", unique: true
   end
 

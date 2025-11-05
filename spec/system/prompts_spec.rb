@@ -59,9 +59,9 @@ RSpec.describe "Prompts management", type: :system do
       select "Enabled", from: "Status"
       fill_in "Temperature", with: "0.8"
 
-      click_button "Update Prompt"
+      click_button "Save & Make Active"
 
-      expect(page).to have_content("Prompt was successfully updated.")
+      expect(page).to have_content("Prompt was successfully updated and made active.")
       expect(page).to have_content("Updated Customer Bot")
       expect(page).to have_content("Updated content for the bot")
       expect(page).to have_content("enabled")
@@ -73,7 +73,7 @@ RSpec.describe "Prompts management", type: :system do
       fill_in "Name", with: ""
       fill_in "Prompt Content", with: ""
 
-      click_button "Update Prompt"
+      click_button "Save New Version"
 
       expect(page).to have_content("Name can't be blank")
       expect(page).to have_content("Content can't be blank")
@@ -234,9 +234,9 @@ RSpec.describe "Prompts management", type: :system do
 
       click_link "Edit"
       fill_in "Name", with: "Flash Test Updated"
-      click_button "Update Prompt"
+      click_button "Save & Make Active"
 
-      expect(page).to have_css(".admin-notification--notice", text: "Prompt was successfully updated.")
+      expect(page).to have_css(".admin-notification--notice", text: "Prompt was successfully updated and made active.")
     end
   end
 

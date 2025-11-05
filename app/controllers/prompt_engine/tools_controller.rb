@@ -1,6 +1,6 @@
 module PromptEngine
   class ToolsController < ApplicationController
-    before_action :set_prompt, except: [:discover]
+    before_action :set_prompt, except: [ :discover ]
 
     # GET /tools/discover
     def discover
@@ -17,37 +17,37 @@ module PromptEngine
     # POST /prompts/:id/tools
     def create
       tool_class_name = params[:tool_class_name]
-      
+
       if @prompt.add_tool(tool_class_name)
         @prompt.save!
-        render json: { 
-          success: true, 
+        render json: {
+          success: true,
           message: "Tool added successfully",
           tool: @prompt.tool_info(tool_class_name)
         }
       else
-        render json: { 
-          success: false, 
-          message: "Failed to add tool. Tool may already be selected or not available." 
-        }, status: :unprocessable_entity
+        render json: {
+          success: false,
+          message: "Failed to add tool. Tool may already be selected or not available."
+        }, status: :unprocessable_content
       end
     end
 
     # DELETE /prompts/:id/tools/:tool_class_name
     def destroy
       tool_class_name = params[:id] # Tool class name is passed as :id
-      
+
       if @prompt.remove_tool(tool_class_name)
         @prompt.save!
-        render json: { 
-          success: true, 
-          message: "Tool removed successfully" 
+        render json: {
+          success: true,
+          message: "Tool removed successfully"
         }
       else
-        render json: { 
-          success: false, 
-          message: "Tool not found or could not be removed" 
-        }, status: :unprocessable_entity
+        render json: {
+          success: false,
+          message: "Tool not found or could not be removed"
+        }, status: :unprocessable_content
       end
     end
 

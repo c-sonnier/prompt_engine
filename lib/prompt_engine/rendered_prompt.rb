@@ -55,13 +55,13 @@ module PromptEngine
     def messages
       msgs = []
       msgs << { role: "system", content: system_message } if system_message.present?
-      
+
       # Ensure JSON instruction is present when json_mode is enabled
       user_content = content
-      if json_mode && !user_content.downcase.include?('json')
+      if json_mode && !user_content.downcase.include?("json")
         user_content = "#{user_content}\n\nPlease respond with valid JSON format."
       end
-      
+
       msgs << { role: "user", content: user_content }
       msgs
     end
@@ -84,14 +84,14 @@ module PromptEngine
       # For Anthropic, we need to separate system message from user messages
       user_messages = []
       user_messages << { role: "user", content: content }
-      
+
       base_params = {
         messages: user_messages,
         model: model || "gpt-4",
         temperature: temperature,
         max_tokens: max_tokens
       }.compact
-      
+
       # Add system message as top-level parameter for Anthropic
       if system_message.present?
         base_params[:system] = system_message
@@ -119,32 +119,31 @@ module PromptEngine
       end
     end
 
-    private
 
     # Execute with OpenAI client
     def execute_with_openai(client, **options)
       # OpenAI client.chat() takes no parameters - it's a different API
       # Try to configure the client first, then call chat
       params = to_openai_params(**options)
-      
+
       begin
         # Try to set parameters on the client if possible
         if client.respond_to?(:model=)
           client.model = params[:model] if params[:model]
         end
-        
+
         if client.respond_to?(:messages=)
           client.messages = params[:messages] if params[:messages]
         end
-        
+
         if client.respond_to?(:temperature=)
           client.temperature = params[:temperature] if params[:temperature]
         end
-        
+
         if client.respond_to?(:max_tokens=)
           client.max_tokens = params[:max_tokens] if params[:max_tokens]
         end
-        
+
         # Now try to call chat
         client.chat
       rescue => e
@@ -157,7 +156,7 @@ module PromptEngine
       params = to_ruby_llm_params(**options)
       # Ensure max_tokens is present for Anthropic
       params[:max_tokens] ||= 1000
-      
+
       begin
         if client.respond_to?(:messages) && client.messages.respond_to?(:create)
           client.messages.create(**params)
@@ -174,7 +173,7 @@ module PromptEngine
     # Execute with RubyLLM client
     def execute_with_ruby_llm(client, **options)
       params = to_ruby_llm_params(**options)
-      
+
       begin
         if client.respond_to?(:messages) && client.messages.respond_to?(:create)
           client.messages.create(**params)

@@ -15,13 +15,13 @@ PromptEngine::Engine.routes.draw do
     end
 
     # Tool management routes
-    resources :tools, only: [ ] do
+    resources :tools do
       collection do
         get :available
         get :discover
       end
     end
-    
+
     resources :versions, only: [ :index, :show ] do
       member do
         post :restore

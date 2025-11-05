@@ -39,7 +39,7 @@ module PromptEngine
         redirect_to prompt_path(@prompt), notice: "Prompt was successfully created."
       else
         load_model_configuration
-        render :new, status: :unprocessable_entity
+        render :new, status: :unprocessable_content
       end
     end
 
@@ -58,7 +58,7 @@ module PromptEngine
         redirect_to prompt_path(@prompt), notice: "Prompt was successfully #{action_message}."
       else
         load_model_configuration
-        render :edit, status: :unprocessable_entity
+        render :edit, status: :unprocessable_content
       end
     end
 

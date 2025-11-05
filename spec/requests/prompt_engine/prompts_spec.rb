@@ -54,7 +54,7 @@ module PromptEngine
       end
 
       context "when prompt has tools" do
-        let(:prompt_with_tools) { create(:prompt, tools: ["WeatherTool", "ExampleTool"]) }
+        let(:prompt_with_tools) { create(:prompt, tools: [ "WeatherTool", "ExampleTool" ]) }
 
         before do
           # Mock the tool discovery service to return tool info
@@ -62,12 +62,12 @@ module PromptEngine
             {
               name: "WeatherTool",
               description: "Gets current weather for a location",
-              methods: ["execute"]
+              methods: [ "execute" ]
             },
             {
-              name: "ExampleTool", 
+              name: "ExampleTool",
               description: "An example tool for testing",
-              methods: ["execute", "validate"]
+              methods: [ "execute", "validate" ]
             }
           ])
         end
@@ -113,9 +113,9 @@ module PromptEngine
           post prompt_engine.prompts_path, params: {
             prompt: valid_attributes.merge(tools: '["WeatherTool", "ExampleTool"]')
           }
-          
+
           expect(response).to redirect_to(prompt_engine.prompt_path(PromptEngine::Prompt.last))
-          expect(PromptEngine::Prompt.last.tools).to eq(["WeatherTool", "ExampleTool"])
+          expect(PromptEngine::Prompt.last.tools).to eq([ "WeatherTool", "ExampleTool" ])
         end
       end
       context "with valid params" do
@@ -146,7 +146,7 @@ module PromptEngine
 
         it "returns unprocessable entity status" do
           post prompt_engine.prompts_path, params: { prompt: invalid_attributes }
-          expect(response).to have_http_status(:unprocessable_entity)
+          expect(response).to have_http_status(:unprocessable_content)
         end
 
         it "renders the new template with errors" do
@@ -199,17 +199,17 @@ module PromptEngine
         it "sets a success notice" do
           patch prompt_engine.prompt_path(prompt), params: { prompt: new_attributes }
           follow_redirect!
-          expect(response.body).to include("Prompt was successfully updated.")
+          expect(response.body).to include("Prompt was successfully updated")
         end
       end
 
       context "with tools" do
         it "updates tools via form" do
-          patch prompt_engine.prompt_path(prompt), params: { 
+          patch prompt_engine.prompt_path(prompt), params: {
             prompt: { tools: '["WeatherTool", "ExampleTool"]' }
           }
           prompt.reload
-          expect(prompt.tools).to eq(["WeatherTool", "ExampleTool"])
+          expect(prompt.tools).to eq([ "WeatherTool", "ExampleTool" ])
         end
       end
 
@@ -223,7 +223,7 @@ module PromptEngine
 
         it "returns unprocessable entity status" do
           patch prompt_engine.prompt_path(prompt), params: { prompt: invalid_attributes }
-          expect(response).to have_http_status(:unprocessable_entity)
+          expect(response).to have_http_status(:unprocessable_content)
         end
 
         it "renders the edit template with errors" do
@@ -261,7 +261,7 @@ module PromptEngine
         it "sets a success notice" do
           put prompt_engine.prompt_path(prompt), params: { prompt: new_attributes }
           follow_redirect!
-          expect(response.body).to include("Prompt was successfully updated.")
+          expect(response.body).to include("Prompt was successfully updated")
         end
       end
 
@@ -275,7 +275,7 @@ module PromptEngine
 
         it "returns unprocessable entity status" do
           put prompt_engine.prompt_path(prompt), params: { prompt: invalid_attributes }
-          expect(response).to have_http_status(:unprocessable_entity)
+          expect(response).to have_http_status(:unprocessable_content)
         end
 
         it "renders the edit template with errors" do

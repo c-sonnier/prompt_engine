@@ -37,8 +37,8 @@ module PromptEngine
           format.json { render json: @workflow, status: :created }
         else
           @available_prompts = PromptEngine::Prompt.enabled.order(:name)
-          format.html { render :new, status: :unprocessable_entity }
-          format.json { render json: { errors: @workflow.errors }, status: :unprocessable_entity }
+          format.html { render :new, status: :unprocessable_content }
+          format.json { render json: { errors: @workflow.errors }, status: :unprocessable_content }
         end
       end
     end
@@ -50,8 +50,8 @@ module PromptEngine
           format.json { render json: @workflow }
         else
           @available_prompts = PromptEngine::Prompt.enabled.order(:name)
-          format.html { render :edit, status: :unprocessable_entity }
-          format.json { render json: { errors: @workflow.errors }, status: :unprocessable_entity }
+          format.html { render :edit, status: :unprocessable_content }
+          format.json { render json: { errors: @workflow.errors }, status: :unprocessable_content }
         end
       end
     end

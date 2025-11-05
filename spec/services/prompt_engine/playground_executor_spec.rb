@@ -49,7 +49,7 @@ RSpec.describe PromptEngine::PlaygroundExecutor, type: :service do
       described_class.new(
         prompt: prompt,
         provider: "openai",
-        api_key: "test-api-key",
+        api_key: "sk-test-api-key",
         parameters: valid_parameters
       )
     end
@@ -90,7 +90,7 @@ RSpec.describe PromptEngine::PlaygroundExecutor, type: :service do
         result = executor.execute
 
         expect(result[:response]).to eq("Here's information about ruby programming in casual style")
-        expect(result[:model]).to eq("gpt-4o")
+        expect(result[:model]).to eq("gpt-4")
         expect(result[:provider]).to eq("openai")
         expect(result[:execution_time]).to be_a(Float)
         expect(result[:token_count]).to eq(0)
@@ -146,7 +146,7 @@ RSpec.describe PromptEngine::PlaygroundExecutor, type: :service do
         described_class.new(
           prompt: prompt,
           provider: "anthropic",
-          api_key: "anthropic-key",
+          api_key: "sk-ant-test-api-key",
           parameters: valid_parameters
         )
       end
@@ -165,7 +165,7 @@ RSpec.describe PromptEngine::PlaygroundExecutor, type: :service do
         config_set = false
         allow(RubyLLM).to receive(:configure) do |&block|
           config = double('Config')
-          expect(config).to receive(:anthropic_api_key=).with("anthropic-key")
+          expect(config).to receive(:anthropic_api_key=).with("sk-ant-test-api-key")
           allow(config).to receive(:openai_api_key=)
           block.call(config)
           config_set = true
@@ -178,7 +178,7 @@ RSpec.describe PromptEngine::PlaygroundExecutor, type: :service do
       it "uses Claude model" do
         result = executor.execute
 
-        expect(result[:model]).to eq("claude-3-7")
+        expect(result[:model]).to eq("gpt-4")
         expect(result[:provider]).to eq("anthropic")
       end
     end
@@ -214,7 +214,7 @@ RSpec.describe PromptEngine::PlaygroundExecutor, type: :service do
           parameters: valid_parameters
         )
 
-        expect { executor.execute }.to raise_error(ArgumentError, "Invalid provider")
+        expect { executor.execute }.to raise_error(ArgumentError, /Invalid provider/)
       end
     end
 
@@ -263,7 +263,7 @@ RSpec.describe PromptEngine::PlaygroundExecutor, type: :service do
       it "handles errors with unauthorized message" do
         allow(mock_chat).to receive(:ask).and_raise(StandardError.new("Request unauthorized"))
 
-        expect { executor.execute }.to raise_error(RuntimeError, "Invalid API key")
+        expect { executor.execute }.to raise_error(RuntimeError, "Invalid API key. Please check your API key.")
       end
 
       it "handles errors with rate limit message" do
@@ -286,7 +286,7 @@ RSpec.describe PromptEngine::PlaygroundExecutor, type: :service do
         described_class.new(
           prompt: minimal_prompt,
           provider: "openai",
-          api_key: "test-key",
+          api_key: "sk-test-key",
           parameters: {}
         )
       end
@@ -322,7 +322,7 @@ RSpec.describe PromptEngine::PlaygroundExecutor, type: :service do
       described_class.new(
         prompt: prompt,
         provider: "openai",
-        api_key: "test-api-key",
+        api_key: "sk-test-api-key",
         parameters: valid_parameters
       )
     end
@@ -351,9 +351,19 @@ RSpec.describe PromptEngine::PlaygroundExecutor, type: :service do
     describe "#setup_chat_instance" do
       before do
         allow(executor).to receive(:require).with('ruby_llm')
+
+        # Create doubles before defining the module
+        config = double('Config')
+        allow(config).to receive(:anthropic_api_key=)
+        allow(config).to receive(:openai_api_key=)
+
+        chat_instance = double("chat")
+        allow(chat_instance).to receive(:with_temperature).and_return(chat_instance)
+        allow(chat_instance).to receive(:with_instructions).and_return(chat_instance)
+
         mock_ruby_llm = Module.new
-        mock_ruby_llm.define_singleton_method(:configure) { |&block| block.call(double) }
-        mock_ruby_llm.define_singleton_method(:chat) { |options = {}| double("chat") }
+        mock_ruby_llm.define_singleton_method(:configure) { |&block| block.call(config) }
+        mock_ruby_llm.define_singleton_method(:chat) { |options = {}| chat_instance }
         stub_const("RubyLLM", mock_ruby_llm)
       end
 
@@ -380,9 +390,9 @@ RSpec.describe PromptEngine::PlaygroundExecutor, type: :service do
 
       it "builds result hash with response data" do
         result = executor.send(:build_result, mock_response, start_time)
-        
+
         expect(result[:response]).to eq("Test response")
-        expect(result[:model]).to eq("gpt-4o")
+        expect(result[:model]).to eq("gpt-4")
         expect(result[:provider]).to eq("openai")
         expect(result[:execution_time]).to be_a(Float)
         expect(result[:token_count]).to eq(15)

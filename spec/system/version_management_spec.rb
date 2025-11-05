@@ -39,7 +39,7 @@ RSpec.describe "Version management", type: :system do
       within(versions[0]) do
         expect(page).to have_content("Version 3")
         expect(page).to have_content("Updated: content")
-        expect(page).to have_css(".badge--primary", text: "Current")
+        expect(page).to have_css(".badge.badge--success", text: "Active")
       end
 
       within(versions[1]) do
@@ -268,7 +268,7 @@ RSpec.describe "Version management", type: :system do
     end
 
     it "displays badges correctly" do
-      expect(page).to have_css(".badge--primary", text: "Current")
+      expect(page).to have_css(".badge.badge--success", text: "Active")
     end
   end
 

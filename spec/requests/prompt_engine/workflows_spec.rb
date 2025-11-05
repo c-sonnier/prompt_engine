@@ -52,7 +52,7 @@ module PromptEngine
 
       it "returns errors with invalid parameters" do
         post workflows_path, params: invalid_params
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
 
         json_response = JSON.parse(response.body)
         expect(json_response).to have_key("errors")
@@ -99,7 +99,7 @@ module PromptEngine
 
       it "returns JSON format when requested" do
         delete workflow_path(workflow), headers: { 'Accept' => 'application/json' }
-        
+
         expect(response).to have_http_status(:no_content)
       end
     end
