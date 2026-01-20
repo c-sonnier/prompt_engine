@@ -112,7 +112,7 @@
                       </td>
                       <td class="table__cell">
                         <span class="table__badge table__badge--<%= prompt.status %>">
-                          <%= prompt.status.humanize %>
+                          <%= prompt.status&.humanize %>
                         </span>
                       </td>
                       <td class="table__cell">
@@ -161,8 +161,8 @@
                     </div>
                     <div class="test-run-item__content">
                       <p class="test-run-item__model text-muted">
-                        <%= run.model %> • 
-                        <%= number_with_delimiter(run.token_count || 0) %> tokens • 
+                        <%= run.model %> •
+                        <%= number_with_delimiter(run.token_count || 0) %> tokens •
                         <%= number_with_precision(run.execution_time * 1000, precision: 0) %>ms •
                         <%= time_ago_in_words(run.created_at) %> ago
                       </p>
@@ -208,7 +208,7 @@
       <%# if run.total_count > 0 %>
       <!--                          <span class="<%#= (run.passed_count.to_f / run.total_count * 100) >= 80 ? 'text-success' : 'text-danger' %>">-->
       <%#= number_to_percentage((run.passed_count.to_f / run.total_count * 100), precision: 1) %>
-      <!--         • 
+      <!--         •
   passed
                 </span>-->
       <%# else %>
