@@ -43,6 +43,10 @@ module PromptEngine
       @overrides[:max_tokens] || @rendered_data[:max_tokens]
     end
 
+    def json_mode
+      @overrides.key?(:json_mode) ? @overrides[:json_mode] : @rendered_data[:json_mode] || prompt.json_mode
+    end
+
     def system_message
       @overrides[:system_message] || @rendered_data[:system_message]
     end
@@ -51,7 +55,14 @@ module PromptEngine
     def messages
       msgs = []
       msgs << { role: "system", content: system_message } if system_message.present?
-      msgs << { role: "user", content: content }
+      
+      # Ensure JSON instruction is present when json_mode is enabled
+      user_content = content
+      if json_mode && !user_content.downcase.include?('json')
+        user_content = "#{user_content}\n\nPlease respond with valid JSON format."
+      end
+      
+      msgs << { role: "user", content: user_content }
       msgs
     end
 
@@ -70,14 +81,27 @@ module PromptEngine
 
     # For RubyLLM compatibility
     def to_ruby_llm_params(**additional_options)
+      # For Anthropic, we need to separate system message from user messages
+      user_messages = []
+      user_messages << { role: "user", content: content }
+      
       base_params = {
-        messages: messages,
+        messages: user_messages,
         model: model || "gpt-4",
         temperature: temperature,
         max_tokens: max_tokens
       }.compact
+      
+      # Add system message as top-level parameter for Anthropic
+      if system_message.present?
+        base_params[:system] = system_message
+      end
 
-      # Merge with additional options
+      # If json_mode enabled and no explicit response_format passed, add it
+      if json_mode && !additional_options.key?(:response_format)
+        additional_options = additional_options.merge(response_format: { type: "json_object" })
+      end
+
       base_params.merge(additional_options)
     end
 
@@ -85,13 +109,84 @@ module PromptEngine
     def execute_with(client, **options)
       case client.class.name
       when /OpenAI/
-        params = to_openai_params(**options)
-        client.chat(parameters: params)
-      when /RubyLLM/, /Anthropic/
-        params = to_ruby_llm_params(**options)
-        client.chat(**params)
+        execute_with_openai(client, **options)
+      when /Anthropic/
+        execute_with_anthropic(client, **options)
+      when /RubyLLM/
+        execute_with_ruby_llm(client, **options)
       else
         raise ArgumentError, "Unknown client type: #{client.class.name}"
+      end
+    end
+
+    private
+
+    # Execute with OpenAI client
+    def execute_with_openai(client, **options)
+      # OpenAI client.chat() takes no parameters - it's a different API
+      # Try to configure the client first, then call chat
+      params = to_openai_params(**options)
+      
+      begin
+        # Try to set parameters on the client if possible
+        if client.respond_to?(:model=)
+          client.model = params[:model] if params[:model]
+        end
+        
+        if client.respond_to?(:messages=)
+          client.messages = params[:messages] if params[:messages]
+        end
+        
+        if client.respond_to?(:temperature=)
+          client.temperature = params[:temperature] if params[:temperature]
+        end
+        
+        if client.respond_to?(:max_tokens=)
+          client.max_tokens = params[:max_tokens] if params[:max_tokens]
+        end
+        
+        # Now try to call chat
+        client.chat
+      rescue => e
+        raise NotImplementedError, "OpenAI client API is different than expected. The client.chat() method takes no parameters. Error: #{e.message}. You may need to use a different OpenAI gem version or configure the client differently."
+      end
+    end
+
+    # Execute with Anthropic client
+    def execute_with_anthropic(client, **options)
+      params = to_ruby_llm_params(**options)
+      # Ensure max_tokens is present for Anthropic
+      params[:max_tokens] ||= 1000
+      
+      begin
+        if client.respond_to?(:messages) && client.messages.respond_to?(:create)
+          client.messages.create(**params)
+        elsif client.respond_to?(:messages)
+          client.messages(**params)
+        else
+          raise ArgumentError, "Anthropic client does not have expected methods"
+        end
+      rescue => e
+        raise ArgumentError, "Failed to call Anthropic client: #{e.message}"
+      end
+    end
+
+    # Execute with RubyLLM client
+    def execute_with_ruby_llm(client, **options)
+      params = to_ruby_llm_params(**options)
+      
+      begin
+        if client.respond_to?(:messages) && client.messages.respond_to?(:create)
+          client.messages.create(**params)
+        elsif client.respond_to?(:messages)
+          client.messages(**params)
+        elsif client.respond_to?(:completions)
+          client.completions(**params)
+        else
+          client.chat(**params)
+        end
+      rescue => e
+        raise ArgumentError, "Failed to call RubyLLM client: #{e.message}"
       end
     end
 

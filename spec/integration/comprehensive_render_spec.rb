@@ -10,7 +10,7 @@ RSpec.describe "Comprehensive PromptEngine.render usage patterns", type: :integr
         content: "Write an email about this topic",
         model: "gpt-3.5-turbo",
         temperature: 0.7,
-        status: "active"
+        status: "enabled"
       )
     end
 
@@ -21,7 +21,7 @@ RSpec.describe "Comprehensive PromptEngine.render usage patterns", type: :integr
         content: "Help {{customer_name}} with {{issue}}",
         model: "gpt-4",
         temperature: 0.3,
-        status: "active"
+        status: "enabled"
       )
     end
 
@@ -30,7 +30,7 @@ RSpec.describe "Comprehensive PromptEngine.render usage patterns", type: :integr
         name: "Onboarding Email",
         slug: "onboarding-email",
         content: "Welcome {{user_name}} to our service!",
-        status: "active"
+        status: "enabled"
       )
       # Create a second version
       prompt.update!(content: "Hi {{user_name}}, welcome aboard!")
@@ -142,8 +142,8 @@ RSpec.describe "Comprehensive PromptEngine.render usage patterns", type: :integr
         expect(rendered.content).to eq("Introducing AI Assistant - built for you!")
       end
 
-      it "defaults to active status when not specified" do
-        # This should fail because new-feature is draft, not active
+      it "defaults to enabled status when not specified" do
+        # This should fail because new-feature is draft, not enabled
         expect {
           PromptEngine.render("new-feature",
             { feature_name: "AI Assistant" }
@@ -151,10 +151,10 @@ RSpec.describe "Comprehensive PromptEngine.render usage patterns", type: :integr
         }.to raise_error(ActiveRecord::RecordNotFound)
       end
 
-      it "can explicitly request active status" do
+      it "can explicitly request enabled status" do
         rendered = PromptEngine.render("customer-support",
           { customer_name: "Dave", issue: "Billing" },
-          options: { status: "active" }
+          options: { status: "enabled" }
         )
 
         expect(rendered.content).to eq("Help Dave with Billing")
@@ -193,7 +193,7 @@ RSpec.describe "Comprehensive PromptEngine.render usage patterns", type: :integr
           name: "Multi Variable",
           slug: "multi-var",
           content: '{{greeting}} {{name}}, your order #{{order_id}} is {{status}}',
-          status: "active"
+          status: "enabled"
         )
 
         rendered = PromptEngine.render("multi-var",
@@ -251,6 +251,102 @@ RSpec.describe "Comprehensive PromptEngine.render usage patterns", type: :integr
         expect(rendered.model).to eq("gpt-3.5")
         expect(rendered.temperature).to eq(0.1)
       end
+    end
+  end
+
+  describe "PromptEngine.execute" do
+    let!(:test_prompt) do
+      PromptEngine::Prompt.create!(
+        name: "Test Execute Prompt",
+        slug: "test-execute",
+        content: "Hello {{name}}, this is a test prompt!",
+        system_message: "You are a helpful assistant.",
+        model: "gpt-3.5-turbo",
+        temperature: 0.7,
+        status: "enabled"
+      )
+    end
+
+    let!(:anthropic_prompt) do
+      PromptEngine::Prompt.create!(
+        name: "Anthropic Test Prompt",
+        slug: "anthropic-test",
+        content: "Hello {{name}}, this is an Anthropic test!",
+        model: "claude-3-sonnet",
+        temperature: 0.5,
+        status: "enabled"
+      )
+    end
+
+    before do
+      # Mock the API keys to avoid actual API calls
+      allow_any_instance_of(PromptEngine::Setting).to receive(:openai_api_key).and_return("sk-test-key")
+      allow_any_instance_of(PromptEngine::Setting).to receive(:anthropic_api_key).and_return("sk-ant-test-key")
+      
+      # Mock the PlaygroundExecutor to avoid actual API calls
+      allow_any_instance_of(PromptEngine::PlaygroundExecutor).to receive(:execute).and_return({
+        response: "Hello Test User, this is a test prompt!",
+        execution_time: 1.234,
+        token_count: 25,
+        model: "gpt-3.5-turbo",
+        provider: "openai"
+      })
+    end
+
+    it "executes a prompt with parameters" do
+      result = PromptEngine.execute("test-execute", name: "Test User")
+      
+      expect(result).to be_a(Hash)
+      expect(result[:response]).to eq("Hello Test User, this is a test prompt!")
+      expect(result[:execution_time]).to eq(1.234)
+      expect(result[:token_count]).to eq(25)
+      expect(result[:model]).to eq("gpt-3.5-turbo")
+      expect(result[:provider]).to eq("openai")
+    end
+
+    it "automatically detects OpenAI provider for GPT models" do
+      result = PromptEngine.execute("test-execute", name: "Test User")
+      expect(result[:provider]).to eq("openai")
+    end
+
+    it "automatically detects Anthropic provider for Claude models" do
+      allow_any_instance_of(PromptEngine::PlaygroundExecutor).to receive(:execute).and_return({
+        response: "Hello Test User, this is an Anthropic test!",
+        execution_time: 1.456,
+        token_count: 30,
+        model: "claude-3-sonnet",
+        provider: "anthropic"
+      })
+
+      result = PromptEngine.execute("anthropic-test", name: "Test User")
+      expect(result[:provider]).to eq("anthropic")
+    end
+
+    it "raises error when prompt is not found" do
+      expect {
+        PromptEngine.execute("non-existent-prompt", name: "Test")
+      }.to raise_error(ActiveRecord::RecordNotFound)
+    end
+
+    it "raises error when API key is not configured" do
+      allow_any_instance_of(PromptEngine::Setting).to receive(:openai_api_key).and_return(nil)
+      
+      expect {
+        PromptEngine.execute("test-execute", name: "Test")
+      }.to raise_error(ArgumentError, /OpenAI API key not configured/)
+    end
+
+    it "works with empty parameters" do
+      allow_any_instance_of(PromptEngine::PlaygroundExecutor).to receive(:execute).and_return({
+        response: "Hello , this is a test prompt!",
+        execution_time: 1.0,
+        token_count: 20,
+        model: "gpt-3.5-turbo",
+        provider: "openai"
+      })
+
+      result = PromptEngine.execute("test-execute")
+      expect(result[:response]).to eq("Hello , this is a test prompt!")
     end
   end
 end

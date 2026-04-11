@@ -84,7 +84,7 @@ bin/rails prompt_engine:install:migrations  # Install engine migrations in host 
 - Central model containing prompt templates with `{{variable}}` syntax
 - Has many versions (auto-versioned on content/system_message changes)
 - Has many parameters (auto-detected from variables)
-- Status enum: draft, active, archived
+- Status enum: draft, enabled, archived
 - Key method: `render(variables: {})` for template rendering
 
 **PromptEngine::PromptVersion**
@@ -113,6 +113,7 @@ bin/rails prompt_engine:install:migrations  # Install engine migrations in host 
 - Handles AI provider communication (Anthropic, OpenAI)
 - Manages API keys from Rails credentials
 - Formats requests and parses responses
+- Supports PDF file attachments for document-based prompts
 
 ### Testing Philosophy
 
@@ -174,6 +175,7 @@ Read `.ai/RSPEC-TESTS.md` before writing tests. Key principles:
 - Supports multiple models (GPT-4, Claude, etc.)
 - Real-time execution with streaming responses
 - Token counting and cost estimation
+- PDF file support for document analysis and processing
 
 ### Engine Integration
 

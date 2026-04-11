@@ -10,10 +10,10 @@ RSpec.describe PromptEngine::Prompt, type: :model do
 
     it "validates uniqueness of name scoped to status" do
       # Create first prompt with required content
-      PromptEngine::Prompt.create!(name: "test", content: "Test content", status: "active")
+      PromptEngine::Prompt.create!(name: "test", content: "Test content", status: "enabled")
 
       # Same name with same status should be invalid
-      duplicate = PromptEngine::Prompt.new(name: "test", content: "Test content", status: "active")
+      duplicate = PromptEngine::Prompt.new(name: "test", content: "Test content", status: "enabled")
       expect(duplicate).not_to be_valid
       expect(duplicate.errors[:name]).to include("has already been taken")
 
@@ -37,7 +37,7 @@ RSpec.describe PromptEngine::Prompt, type: :model do
       expect { prompt.status = "invalid" }.to raise_error(ArgumentError)
 
       # Test that valid statuses work
-      %w[draft active archived].each do |valid_status|
+      %w[draft enabled archived].each do |valid_status|
         prompt.status = valid_status
         prompt.valid?
         expect(prompt.errors[:status]).to be_empty
@@ -157,6 +157,15 @@ RSpec.describe PromptEngine::Prompt, type: :model do
         expect(current.version_number).to eq(3)
         expect(current.content).to eq("Version 3")
       end
+
+      it "returns an older activated version instead of latest" do
+        prompt.update!(content: "Version 2")
+        v1 = prompt.version_at(1)
+        v2 = prompt.current_version
+        expect(v2.version_number).to eq(2)
+        v1.activate!
+        expect(prompt.reload.current_version).to eq(v1)
+      end
     end
 
     describe "#version_count" do
@@ -263,7 +272,7 @@ RSpec.describe PromptEngine::Prompt, type: :model do
           model: "gpt-4",
           temperature: 0.7,
           max_tokens: 100,
-          status: "active"
+          status: "enabled"
         )
       end
 
@@ -430,6 +439,38 @@ RSpec.describe PromptEngine::Prompt, type: :model do
       it "returns true on success" do
         prompt.update!(content: "Hello {{name}}")
         expect(prompt.sync_parameters!).to be true
+      end
+
+      # Test the refactored private methods
+      describe "private methods" do
+        it "add_new_parameters works correctly" do
+          prompt.update!(content: "Hello {{name}}")
+          prompt.sync_parameters!
+          
+          # Test adding new parameters
+          expect { prompt.send(:add_new_parameters, ["score"]) }.to change { prompt.parameters.count }.by(1)
+          expect(prompt.parameters.find_by(name: "score")).to be_present
+        end
+
+        it "add_new_parameters handles empty array" do
+          expect { prompt.send(:add_new_parameters, []) }.not_to change { prompt.parameters.count }
+        end
+
+        it "remove_orphaned_parameters works correctly" do
+          prompt.update!(content: "Hello {{name}} and {{score}}")
+          prompt.sync_parameters!
+          expect(prompt.parameters.count).to eq(2)
+          
+          expect { prompt.send(:remove_orphaned_parameters, ["score"]) }.to change { prompt.parameters.count }.by(-1)
+          expect(prompt.parameters.find_by(name: "score")).to be_nil
+        end
+
+        it "remove_orphaned_parameters handles empty array" do
+          prompt.sync_parameters!
+          initial_count = prompt.parameters.count
+          
+          expect { prompt.send(:remove_orphaned_parameters, []) }.not_to change { prompt.parameters.count }
+        end
       end
     end
 

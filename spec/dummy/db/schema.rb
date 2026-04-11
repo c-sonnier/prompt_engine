@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_08_06_145216) do
+ActiveRecord::Schema[8.0].define(version: 2025_09_30_173443) do
   create_table "prompt_engine_eval_results", force: :cascade do |t|
     t.integer "eval_run_id", null: false
     t.integer "test_case_id", null: false
@@ -108,8 +108,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_08_06_145216) do
     t.text "change_description"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "json_mode", default: false, null: false
+    t.boolean "active", default: false, null: false
+    t.json "tools", null: false
+    t.index ["active"], name: "index_prompt_engine_prompt_versions_on_active"
+    t.index ["json_mode"], name: "index_prompt_engine_prompt_versions_on_json_mode"
     t.index ["prompt_id", "version_number"], name: "index_prompt_versions_on_prompt_and_version", unique: true
     t.index ["prompt_id"], name: "index_prompt_engine_prompt_versions_on_prompt_id"
+    t.index ["tools"], name: "index_prompt_engine_prompt_versions_on_tools"
     t.index ["version_number"], name: "index_prompt_engine_prompt_versions_on_version_number"
   end
 
@@ -127,7 +133,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_08_06_145216) do
     t.string "slug"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "json_mode", default: false, null: false
+    t.json "tools", null: false
+    t.index ["json_mode"], name: "index_prompt_engine_prompts_on_json_mode"
     t.index ["slug"], name: "index_prompt_engine_prompts_on_slug", unique: true
+    t.index ["tools"], name: "index_prompt_engine_prompts_on_tools"
   end
 
   create_table "prompt_engine_settings", force: :cascade do |t|
@@ -148,6 +158,32 @@ ActiveRecord::Schema[8.0].define(version: 2025_08_06_145216) do
     t.index ["eval_set_id"], name: "index_prompt_engine_test_cases_on_eval_set_id"
   end
 
+  create_table "prompt_engine_workflow_runs", force: :cascade do |t|
+    t.integer "workflow_id", null: false
+    t.text "initial_input"
+    t.json "input_variables"
+    t.json "results"
+    t.integer "status", default: 0, null: false
+    t.decimal "execution_time", precision: 8, scale: 3
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "title"
+    t.index ["created_at"], name: "index_prompt_engine_workflow_runs_on_created_at"
+    t.index ["status"], name: "index_prompt_engine_workflow_runs_on_status"
+    t.index ["workflow_id"], name: "index_prompt_engine_workflow_runs_on_workflow_id"
+  end
+
+  create_table "prompt_engine_workflows", force: :cascade do |t|
+    t.string "name", null: false
+    t.json "steps", null: false
+    t.json "conditions"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "pass_original_input", default: true, null: false
+    t.index ["name"], name: "index_prompt_engine_workflows_on_name", unique: true
+  end
+
   add_foreign_key "prompt_engine_eval_results", "prompt_engine_eval_runs", column: "eval_run_id"
   add_foreign_key "prompt_engine_eval_results", "prompt_engine_test_cases", column: "test_case_id"
   add_foreign_key "prompt_engine_eval_runs", "prompt_engine_eval_sets", column: "eval_set_id"
@@ -157,4 +193,5 @@ ActiveRecord::Schema[8.0].define(version: 2025_08_06_145216) do
   add_foreign_key "prompt_engine_playground_run_results", "prompt_engine_prompt_versions", column: "prompt_version_id"
   add_foreign_key "prompt_engine_prompt_versions", "prompt_engine_prompts", column: "prompt_id"
   add_foreign_key "prompt_engine_test_cases", "prompt_engine_eval_sets", column: "eval_set_id"
+  add_foreign_key "prompt_engine_workflow_runs", "prompt_engine_workflows", column: "workflow_id"
 end

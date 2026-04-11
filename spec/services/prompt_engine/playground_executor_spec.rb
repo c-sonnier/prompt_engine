@@ -313,12 +313,87 @@ RSpec.describe PromptEngine::PlaygroundExecutor, type: :service do
     end
   end
 
-  describe "MODELS constant" do
-    it "contains supported providers and their models" do
-      expect(described_class::MODELS).to eq({
-        "anthropic" => "claude-3-7",
-        "openai" => "gpt-4o"
-      })
+  # Note: MODELS constant was removed as part of refactoring
+  # Model configuration is now handled by ModelConfigurationService
+
+  # Test the refactored private methods
+  describe "refactored private methods" do
+    let(:executor) do
+      described_class.new(
+        prompt: prompt,
+        provider: "openai",
+        api_key: "test-api-key",
+        parameters: valid_parameters
+      )
+    end
+
+    describe "#prepare_content" do
+      it "processes content with parameters" do
+        content = executor.send(:prepare_content)
+        expect(content).to include("ruby programming")
+        expect(content).to include("casual")
+      end
+
+      it "handles json_mode when enabled" do
+        prompt.update!(json_mode: true)
+        content = executor.send(:prepare_content)
+        expect(content).to include("JSON format")
+      end
+
+      it "does not add JSON instruction when already present" do
+        prompt.update!(json_mode: true, content: "Tell me about {{topic}} in JSON format")
+        content = executor.send(:prepare_content)
+        # Should not duplicate JSON instruction
+        expect(content.scan(/JSON format/).count).to eq(1)
+      end
+    end
+
+    describe "#setup_chat_instance" do
+      before do
+        allow(executor).to receive(:require).with('ruby_llm')
+        mock_ruby_llm = Module.new
+        mock_ruby_llm.define_singleton_method(:configure) { |&block| block.call(double) }
+        mock_ruby_llm.define_singleton_method(:chat) { |options = {}| double("chat") }
+        stub_const("RubyLLM", mock_ruby_llm)
+      end
+
+      it "configures RubyLLM and returns chat instance" do
+        chat = executor.send(:setup_chat_instance)
+        expect(chat).to be_present
+      end
+    end
+
+    describe "#execute_chat" do
+      let(:mock_chat) { double("chat") }
+      let(:mock_response) { double("response", content: "Test response") }
+
+      it "executes chat with content" do
+        expect(mock_chat).to receive(:ask).with("Tell me about ruby programming in casual style").and_return(mock_response)
+        result = executor.send(:execute_chat, mock_chat, "Tell me about ruby programming in casual style")
+        expect(result).to eq(mock_response)
+      end
+    end
+
+    describe "#build_result" do
+      let(:mock_response) { double("response", content: "Test response", input_tokens: 10, output_tokens: 5) }
+      let(:start_time) { Time.current }
+
+      it "builds result hash with response data" do
+        result = executor.send(:build_result, mock_response, start_time)
+        
+        expect(result[:response]).to eq("Test response")
+        expect(result[:model]).to eq("gpt-4o")
+        expect(result[:provider]).to eq("openai")
+        expect(result[:execution_time]).to be_a(Float)
+        expect(result[:token_count]).to eq(15)
+      end
+
+      it "handles response without token information" do
+        response_without_tokens = double("response", content: "Test response")
+        result = executor.send(:build_result, response_without_tokens, start_time)
+        
+        expect(result[:token_count]).to eq(0)
+      end
     end
   end
 end

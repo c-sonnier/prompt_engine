@@ -1,4 +1,5 @@
 module PromptEngine
+  # @deprecated Use VariableDetector instead. This class will be removed in a future version.
   class ParameterParser
     attr_reader :content
 

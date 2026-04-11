@@ -5,6 +5,8 @@ module PromptEngine
     has_many :versions, -> { order(version_number: :desc) },
       class_name: "PromptEngine::PromptVersion",
       dependent: :destroy
+    has_one :active_version, -> { where(active: true).order(version_number: :desc) },
+      class_name: "PromptEngine::PromptVersion"
     has_many :parameters, -> { ordered },
       class_name: "PromptEngine::Parameter",
       dependent: :destroy
@@ -22,11 +24,11 @@ module PromptEngine
 
     enum :status, {
       draft: "draft",
-      active: "active",
+      enabled: "enabled",
       archived: "archived"
     }, default: "draft"
 
-    scope :active, -> { where(status: "active") }
+    scope :enabled, -> { where(status: "enabled") }
     scope :by_name, -> { order(:name) }
 
     before_validation :generate_slug_from_name, on: :create
@@ -36,11 +38,11 @@ module PromptEngine
     after_update :sync_parameters!, if: :saved_change_to_content?
     before_save :clean_orphaned_parameters
 
-    VERSIONED_ATTRIBUTES = %w[content system_message model temperature max_tokens metadata].freeze
+  VERSIONED_ATTRIBUTES = %w[content system_message model temperature max_tokens json_mode metadata tools].freeze
     OVERRIDE_KEYS = %i[model temperature max_tokens version].freeze
 
     def current_version
-      versions.first
+      active_version || versions.first
     end
 
     def version_count
@@ -54,6 +56,10 @@ module PromptEngine
 
     def version_at(version_number)
       versions.find_by(version_number: version_number)
+    end
+
+    def set_next_version_active(active = true)
+      @make_new_version_active = active
     end
 
     def versioned_attributes_changed?
@@ -70,33 +76,10 @@ module PromptEngine
     def sync_parameters!
       detected_vars = detect_variables
       existing_names = parameters.pluck(:name)
-
-      # Add new parameters
-      new_vars = detected_vars - existing_names
-      if new_vars.any?
-        # Get max position once, before the loop
-        max_position = parameters.maximum(:position) || 0
-        detector = PromptEngine::VariableDetector.new(content)
-
-        new_vars.each_with_index do |var_name, index|
-          var_info = detector.extract_variables.find { |v| v[:name] == var_name }
-
-          # Skip if parameter already exists (race condition protection)
-          next if parameters.exists?(name: var_name)
-
-          parameters.create!(
-            name: var_name,
-            parameter_type: var_info[:type],
-            required: var_info[:required],
-            position: max_position + index + 1
-          )
-        end
-      end
-
-      # Remove parameters that no longer exist
-      removed_vars = existing_names - detected_vars
-      parameters.where(name: removed_vars).destroy_all if removed_vars.any?
-
+      
+      add_new_parameters(detected_vars - existing_names)
+      remove_orphaned_parameters(existing_names - detected_vars)
+      
       true
     end
 
@@ -199,6 +182,56 @@ module PromptEngine
       PromptEngine::RenderedPrompt.new(self, rendered_data, overrides)
     end
 
+    # Tool management methods
+    def available_tools
+      @available_tools ||= PromptEngine::ToolDiscoveryService.discover_tools
+    end
+
+    def tool_info(tool_class_name)
+      available_tools.find { |tool| tool[:name] == tool_class_name }
+    end
+
+    def selected_tools
+      return [] if tools.blank?
+      tools.map { |tool_name| tool_info(tool_name) }.compact
+    end
+
+    def add_tool(tool_class_name)
+      return false unless available_tools.any? { |tool| tool[:name] == tool_class_name }
+      
+      current_tools = tools || []
+      return false if current_tools.include?(tool_class_name)
+      
+      self.tools = current_tools + [tool_class_name]
+      true
+    end
+
+    def remove_tool(tool_class_name)
+      current_tools = tools || []
+      return false unless current_tools.include?(tool_class_name)
+      
+      self.tools = current_tools - [tool_class_name]
+      true
+    end
+
+    def has_tool?(tool_class_name)
+      (tools || []).include?(tool_class_name)
+    end
+
+    # Handle tools parameter from form (JSON string)
+    def tools=(value)
+      if value.is_a?(String)
+        begin
+          parsed_tools = JSON.parse(value)
+          super(parsed_tools.is_a?(Array) ? parsed_tools : [])
+        rescue JSON::ParserError
+          super([])
+        end
+      else
+        super(value)
+      end
+    end
+
     # Class method for finding by slug
     def self.find_by_slug!(slug)
       find_by!(slug: slug)
@@ -213,8 +246,11 @@ module PromptEngine
         model: model,
         temperature: temperature,
         max_tokens: max_tokens,
+        json_mode: json_mode,
         metadata: metadata,
-        change_description: "Initial version"
+        tools: tools || [],
+        change_description: "Initial version",
+        active: true
       )
     end
 
@@ -222,14 +258,20 @@ module PromptEngine
       # Check saved_changes in the after_update callback
       return unless (saved_changes.keys & VERSIONED_ATTRIBUTES).any?
 
+      # Check if we should make this version active (default: true for backward compatibility)
+      make_active = @make_new_version_active.nil? ? true : @make_new_version_active
+
       versions.create!(
         content: content,
         system_message: system_message,
         model: model,
         temperature: temperature,
         max_tokens: max_tokens,
+        json_mode: json_mode,
         metadata: metadata,
-        change_description: "Updated: #{(saved_changes.keys & VERSIONED_ATTRIBUTES).join(", ")}"
+        tools: tools || [],
+        change_description: "Updated: #{(saved_changes.keys & VERSIONED_ATTRIBUTES).join(", ")}",
+        active: make_active
       )
     end
 
@@ -245,6 +287,32 @@ module PromptEngine
 
     def generate_slug_from_name
       self.slug ||= name&.parameterize
+    end
+
+    def add_new_parameters(new_vars)
+      return if new_vars.empty?
+
+      # Get max position once, before the loop
+      max_position = parameters.maximum(:position) || 0
+      detector = PromptEngine::VariableDetector.new(content)
+
+      new_vars.each_with_index do |var_name, index|
+        var_info = detector.extract_variables.find { |v| v[:name] == var_name }
+
+        # Skip if parameter already exists (race condition protection)
+        next if parameters.exists?(name: var_name)
+
+        parameters.create!(
+          name: var_name,
+          parameter_type: var_info[:type],
+          required: var_info[:required],
+          position: max_position + index + 1
+        )
+      end
+    end
+
+    def remove_orphaned_parameters(removed_vars)
+      parameters.where(name: removed_vars).destroy_all if removed_vars.any?
     end
   end
 end

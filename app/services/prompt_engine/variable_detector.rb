@@ -1,5 +1,5 @@
 module PromptEngine
-  class VariableDetector
+  class VariableDetector < BaseService
     # Regex pattern to match {{variable_name}} syntax
     # Allows letters, numbers, underscores, and dots for nested variables
     VARIABLE_PATTERN = /\{\{([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\}\}/
@@ -8,6 +8,10 @@ module PromptEngine
 
     def initialize(content)
       @content = content.to_s
+    end
+
+    def call
+      extract_variables
     end
 
     # Extract all variables from the content

@@ -15,6 +15,7 @@ PromptEngine is currently being worked on actively to prepare for a proper initi
 
 - 🚀 [Live Demo App](https://prompt-engine-demo.avi.nyc)
 - 📖 [Documentation](https://prompt-engine-docs.avi.nyc/)
+- 🧪 [Manual Tests](manual_tests/) - Test scripts to verify `execute_with` method works with different AI clients
 
 ## Why PromptEngine?
 
@@ -32,6 +33,7 @@ PromptEngine is currently being worked on actively to prepare for a proper initi
 - 📝 **Version Control**: Automatic versioning with one-click rollback
 - 🔍 **Variable Detection**: Auto-detects `{{variables}}` and creates typed parameters
 - 🧪 **Playground**: Test prompts with real AI providers before deploying
+- 🔧 **Tool Integration**: Add RubyLLM tools to prompts for enhanced functionality
 - 🔐 **Secure**: Encrypted API key storage using Rails encryption
 - 🚀 **Modern API**: Object-oriented design with direct LLM integration
 
@@ -140,6 +142,49 @@ Visit `/prompt_engine` in your browser to access the admin interface where you c
 
 ### In Your Application
 
+#### Simple AI Execution (Recommended)
+
+The easiest way to use PromptEngine is with `PromptEngine.execute` - just provide the prompt slug and parameters, and get AI responses instantly:
+
+```ruby
+# Execute a prompt and get AI response (no setup required!)
+result = PromptEngine.execute("customer-support",
+  customer_name: "John", 
+  issue: "Can't login to my account"
+)
+
+puts result[:response]        # => "Hello John, I understand you're having trouble..."
+puts result[:execution_time]  # => 1.234
+puts result[:token_count]     # => 25
+puts result[:model]          # => "gpt-3.5-turbo"
+puts result[:provider]       # => "openai"
+```
+
+**Parameter Validation**: PromptEngine automatically validates required parameters before making API calls:
+
+```ruby
+# Missing required parameters will raise clear errors
+begin
+  result = PromptEngine.execute("customer-support", customer_name: "John")
+rescue ArgumentError => e
+  puts e.message  # => "Missing required parameter: issue. Available parameters: customer_name, issue"
+end
+
+# Invalid parameter types are also caught
+begin
+  result = PromptEngine.execute("customer-support", 
+    customer_name: "John", 
+    issue: 123  # Should be a string
+  )
+rescue ArgumentError => e
+  puts e.message  # => "issue must be a string"
+end
+```
+
+#### Advanced Usage with Manual Rendering
+
+For more control, you can render prompts manually and integrate with specific LLM clients:
+
 ```ruby
 # Render a prompt with variables (defaults to active prompts only)
 rendered = PromptEngine.render("customer-support",
@@ -176,11 +221,11 @@ rendered = PromptEngine.render("onboarding-email",
   options: { version: 3 }
 )
 
-# Render prompts with different statuses (defaults to 'active')
+# Render prompts with different statuses (defaults to 'enabled')
 # Useful for testing drafts or accessing archived prompts
 rendered = PromptEngine.render("new-feature",
   { feature_name: "AI Assistant" },
-  options: { status: "draft" }  # Can be 'draft', 'active', or 'archived'
+  options: { status: "draft" }  # Can be 'draft', 'enabled', or 'archived'
 )
 ```
 
@@ -203,13 +248,72 @@ Renders a prompt template with the given variables.
 - `slug` (String): The unique identifier for the prompt
 - `variables` (Hash): Variables to interpolate in the prompt (optional positional argument)
 - `options:` (Hash): Rendering options (optional keyword argument)
-  - `status`: The status to filter by (defaults to 'active')
+  - `status`: The status to filter by (defaults to 'enabled')
   - `model`: Override the default model
   - `temperature`: Override the default temperature
   - `max_tokens`: Override the default max tokens
   - `version`: Load a specific version number
 
 **Returns:** `PromptEngine::RenderedPrompt` instance
+
+### PromptEngine.execute(slug, parameters = {})
+
+Executes a prompt with the given parameters and returns the AI response. This method automatically detects the provider based on the prompt's model and uses the configured API keys.
+
+**Parameters:**
+
+- `slug` (String): The unique identifier for the prompt
+- `parameters` (Hash): Parameters to pass to the prompt (optional)
+
+**Returns:** `Hash` with the following keys:
+- `response` (String): The AI-generated response
+- `execution_time` (Float): Time taken to execute in seconds
+- `token_count` (Integer): Number of tokens used
+- `model` (String): The model that was used
+- `provider` (String): The provider that was used ("openai" or "anthropic")
+
+**Example:**
+
+```ruby
+# Execute a prompt with parameters
+result = PromptEngine.execute("customer-support", 
+  customer_name: "John", 
+  issue: "Can't login to my account"
+)
+
+puts result[:response]        # => "Hello John, I understand you're having trouble..."
+puts result[:execution_time]  # => 1.234
+puts result[:token_count]     # => 25
+puts result[:model]          # => "gpt-3.5-turbo"
+puts result[:provider]       # => "openai"
+
+# Execute without parameters
+result = PromptEngine.execute("simple-greeting")
+puts result[:response]       # => "Hello! How can I help you today?"
+```
+
+**Parameter Validation**: The method automatically validates required parameters before making API calls. If parameters are missing or invalid, it raises an `ArgumentError` with a clear message:
+
+```ruby
+# Missing required parameters
+begin
+  PromptEngine.execute("customer-support", customer_name: "John")
+rescue ArgumentError => e
+  puts e.message  # => "Missing required parameter: issue. Available parameters: customer_name, issue"
+end
+
+# Invalid parameter types
+begin
+  PromptEngine.execute("customer-support", 
+    customer_name: "John", 
+    issue: 123  # Should be a string
+  )
+rescue ArgumentError => e
+  puts e.message  # => "issue must be a string"
+end
+```
+
+**Note:** This method requires API keys to be configured in the settings. It will raise an `ArgumentError` if the required API key is not configured.
 
 ### RenderedPrompt Methods
 
@@ -221,6 +325,31 @@ Renders a prompt template with the given variables.
 - `to_openai_params`: Convert to OpenAI API format
 - `to_ruby_llm_params`: Convert to RubyLLM/Anthropic format
 - `execute_with(client)`: Execute with an LLM client
+
+### JSON Mode (Structured Output)
+
+Enable a prompt-level toggle that requests structured JSON output from providers that support RubyLLM's `response_format` option (e.g., OpenAI). When `json_mode` is enabled on a prompt, `RenderedPrompt#to_ruby_llm_params` automatically includes:
+
+```ruby
+response_format: { type: 'json_object' }
+```
+
+Example:
+
+```ruby
+prompt.update!(json_mode: true)
+rendered = prompt.render
+params = rendered.to_ruby_llm_params
+params[:response_format] # => { type: 'json_object' }
+```
+
+If you need a custom structure, you can still pass your own response_format which takes precedence:
+
+```ruby
+rendered.to_ruby_llm_params(response_format: { type: 'json_schema', schema: my_schema_hash })
+```
+
+Disable by unchecking the JSON Mode checkbox in the UI or setting `json_mode: false`.
 
 ## Contributing
 

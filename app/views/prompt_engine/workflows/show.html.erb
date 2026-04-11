@@ -1,0 +1,221 @@
+<div class="admin-header">
+  <div>
+    <h1><%= @workflow.name %></h1>
+  </div>
+  <div class="btn-group">
+    <%= link_to "Test in Playground", playground_workflow_path(@workflow), class: "btn btn--primary btn--medium" %>
+    <%= link_to "Edit", edit_workflow_path(@workflow), class: "btn btn--secondary btn--medium" %>
+    <%= link_to "Back to Workflows", workflows_path, class: "btn btn--secondary btn--medium" %>
+  </div>
+</div>
+
+<div class="card mb-lg">
+    <div class="card__header">
+      <h3 class="card__title">Workflow Details (Beta)</h3>
+    </div>
+  <div class="card__body">
+    <div class="form__group">
+      <label class="form__label">Name</label>
+      <div class="form__static"><%= @workflow.name %></div>
+    </div>
+
+    <div class="form__group">
+      <label class="form__label">Created</label>
+      <div class="form__static">
+        <%= @workflow.created_at.strftime("%B %d, %Y at %I:%M %p") %>
+        (<%= time_ago_in_words(@workflow.created_at) %> ago)
+      </div>
+    </div>
+
+    <% if @workflow.updated_at != @workflow.created_at %>
+      <div class="form__group">
+        <label class="form__label">Last Updated</label>
+        <div class="form__static">
+          <%= @workflow.updated_at.strftime("%B %d, %Y at %I:%M %p") %>
+          (<%= time_ago_in_words(@workflow.updated_at) %> ago)
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<div class="card mb-lg">
+  <div class="card__header">
+    <h3 class="card__title">Workflow Steps (Beta)</h3>
+    <div class="text-sm text-muted">
+      Steps are executed in order. Each step's output becomes the input for the next step.
+    </div>
+  </div>
+  <div class="card__body">
+    <% if @workflow.steps.present? %>
+      <div class="workflow-steps">
+        <% @workflow.steps.sort.each_with_index do |(step_key, prompt_slug), index| %>
+          <% prompt = PromptEngine::Prompt.find_by(slug: prompt_slug) %>
+          <div class="workflow-step">
+            <div class="workflow-step__number">
+              <%= index + 1 %>
+            </div>
+            <div class="workflow-step__content">
+              <div class="workflow-step__header">
+                <h4 class="workflow-step__title">
+                  <% if prompt %>
+                    <%= link_to prompt.name, prompt_path(prompt), class: "link" %>
+                  <% else %>
+                    <span class="text-danger">Missing Prompt</span>
+                  <% end %>
+                </h4>
+                <code class="workflow-step__slug"><%= prompt_slug %></code>
+              </div>
+              <% if prompt %>
+                <div class="workflow-step__description">
+                  <% if prompt.description.present? %>
+                    <%= prompt.description %>
+                  <% else %>
+                    <span class="text-muted">No description</span>
+                  <% end %>
+                </div>
+                <div class="workflow-step__variables">
+                  <strong>Variables:</strong>
+                  <% if index == 0 %>
+                    Initial variables will be passed to this step
+                  <% else %>
+                    <code>{{output}}</code> from previous step
+                  <% end %>
+                </div>
+              <% else %>
+                <div class="alert alert--danger">
+                  <strong>Error:</strong> Prompt "<%= prompt_slug %>" not found. 
+                  This workflow may not execute correctly.
+                </div>
+              <% end %>
+            </div>
+            <% unless index == @workflow.steps.size - 1 %>
+              <div class="workflow-step__arrow">↓</div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="empty-state">
+        <div class="empty-state__icon">📝</div>
+        <h3 class="empty-state__title">No steps defined</h3>
+        <p class="empty-state__description">
+          Add steps to this workflow to chain prompts together.
+        </p>
+        <%= link_to "Edit Workflow", edit_workflow_path(@workflow), class: "btn btn--primary btn--medium" %>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<% if @workflow.steps.present? %>
+  <div class="card mb-lg">
+    <div class="card__header">
+      <h3 class="card__title">Usage Example</h3>
+    </div>
+    <div class="card__body">
+      <div class="code-block">
+        <pre><code># Execute workflow and get final result
+result = PromptEngine.workflow("<%= @workflow.name %>", 
+  variable1: "value1",
+  variable2: "value2"
+)
+
+# Execute workflow and get detailed step results  
+detailed_result = PromptEngine.workflow_with_steps("<%= @workflow.name %>",
+  variable1: "value1", 
+  variable2: "value2"
+)
+
+# detailed_result will include:
+# {
+<% @workflow.steps.sort.each do |step_key, prompt_slug| %>
+#   "<%= prompt_slug %>_output" => "...",
+<% end %>
+#   "result" => "final output"
+# }</code></pre>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<div class="card mb-lg">
+  <div class="card__header">
+    <h3 class="card__title">Recent Runs</h3>
+    <% if @workflow.workflow_runs.any? %>
+      <div class="card__actions">
+        <%= link_to "View All", workflow_workflow_runs_path(@workflow), class: "btn btn--secondary btn--small" %>
+      </div>
+    <% end %>
+  </div>
+  
+  <% if @workflow.workflow_runs.any? %>
+    <div class="card__body">
+      <div class="table-container table-container--compact">
+        <table class="table table--simple">
+          <tbody>
+            <% @workflow.workflow_runs.recent.limit(5).each_with_index do |run, index| %>
+              <tr>
+                <td>
+                  <div class="table__primary"><%= run.created_at.strftime("%b %d, %Y %I:%M %p") %></div>
+                </td>
+                <td>
+                  <span class="table__badge table__badge--<%= run.status == 'completed' ? 'success' : 'danger' %>">
+                    <%= run.status.humanize %>
+                  </span>
+                </td>
+                <td>
+                  <div class="table__secondary" style="display: flex; align-items: center; gap: 8px;">
+                    <span id="title-display-<%= index %>"><%= run.title %></span>
+                    <button type="button" class="btn btn--small btn--ghost" id="edit-title-btn-<%= index %>"
+                            onclick="document.getElementById('edit-title-form-<%= index %>').style.display = 'flex'; document.getElementById('title-display-<%= index %>').style.display = 'none'; this.style.display = 'none';"
+                            title="Edit title">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                      </svg>
+                    </button>
+                    <div id="edit-title-form-<%= index %>" style="display: none; align-items: center; gap: 4px;">
+                      <%= form_with url: update_title_workflow_workflow_run_path(@workflow, run), method: :patch, local: true, style: "display: flex; align-items: center; gap: 4px;" do |form| %>
+                        <%= form.text_field :title, value: run.title, class: "form__input form__input--small", style: "width: 200px;" %>
+                        <%= form.submit "Save", class: "btn btn--primary btn--small" %>
+                        <button type="button" class="btn btn--secondary btn--small" 
+                                onclick="document.getElementById('edit-title-form-<%= index %>').style.display = 'none'; document.getElementById('title-display-<%= index %>').style.display = 'inline'; document.getElementById('edit-title-btn-<%= index %>').style.display = 'inline-block';">
+                          Cancel
+                        </button>
+                      <% end %>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="table__metric">
+                    <span class="table__metric-value"><%= number_with_precision(run.execution_time, precision: 3) %></span>
+                    <span class="table__metric-unit">s</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="table__secondary"><%= run.initial_input.presence&.truncate(30) || "No input" %></span>
+                </td>
+                <td class="table__actions">
+                  <%= link_to "View Details", workflow_workflow_run_path(@workflow, run), class: "table__action" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+      </table>
+      </div>
+    </div>
+  <% else %>
+    <div class="card__body">
+      <p class="text-muted">No runs yet. Execute the workflow in the playground to see results here.</p>
+    </div>
+  <% end %>
+</div>
+
+<div class="prompt-details">
+  <div class="form__actions mt-lg">
+    <%= link_to "Back to Workflows", workflows_path, class: "btn btn--secondary btn--medium" %>
+  </div>
+</div>

@@ -16,6 +16,7 @@ module PromptEngine
 
     scope :latest, -> { order(version_number: :desc) }
     scope :chronological, -> { order(created_at: :asc) }
+  scope :active, -> { where(active: true) }
 
     def restore!
       # Update the prompt attributes
@@ -44,8 +45,17 @@ module PromptEngine
         model: model,
         temperature: temperature,
         max_tokens: max_tokens,
-        metadata: metadata
+        json_mode: json_mode,
+        metadata: metadata,
+        tools: tools || []
       }
+    end
+
+    def activate!
+      transaction do
+        prompt.versions.update_all(active: false)
+        update!(active: true)
+      end
     end
 
     private
@@ -59,7 +69,7 @@ module PromptEngine
     end
 
     def ensure_immutability
-      immutable_attributes = %w[content system_message model temperature max_tokens]
+  immutable_attributes = %w[content system_message model temperature max_tokens json_mode]
       changed_immutable = (changed & immutable_attributes)
 
       if changed_immutable.any?
@@ -67,6 +77,14 @@ module PromptEngine
           errors.add(attr, "cannot be changed after creation")
         end
       end
+    end
+
+    # Activation helpers
+    before_create :deactivate_existing_if_marked_active, if: :active?
+
+    def deactivate_existing_if_marked_active
+      return unless prompt_id
+      prompt.versions.update_all(active: false)
     end
   end
 end

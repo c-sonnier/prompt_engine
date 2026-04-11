@@ -14,9 +14,18 @@ PromptEngine::Engine.routes.draw do
       get :search
     end
 
+    # Tool management routes
+    resources :tools, only: [ ] do
+      collection do
+        get :available
+        get :discover
+      end
+    end
+    
     resources :versions, only: [ :index, :show ] do
       member do
         post :restore
+        post :activate
         get :compare
       end
       resources :playground_run_results, only: [ :index ]
@@ -45,8 +54,23 @@ PromptEngine::Engine.routes.draw do
 
   resource :settings, only: [ :edit, :update ]
 
+  resources :workflows do
+    member do
+      get :playground, to: "workflow_playground#show"
+      post :playground, to: "workflow_playground#execute"
+    end
+    resources :workflow_runs, only: [ :index, :show ] do
+      member do
+        patch :update_title
+      end
+    end
+  end
+
   # Evaluations index - shows all eval sets across all prompts
   get "evaluations", to: "evaluations#index", as: :evaluations
+
+  # Tool discovery for forms
+  get "tools/discover", to: "tools#discover", as: :discover_tools
 
   # API endpoints for integration
   namespace :api do

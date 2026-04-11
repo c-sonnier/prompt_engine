@@ -1,0 +1,187 @@
+<div class="admin-header">
+  <div>
+    <h1>Workflow Run Details (Beta)</h1>
+    <p class="text-muted">
+      Run from <%= @workflow_run.created_at.strftime("%B %d, %Y at %I:%M %p") %>
+      (<%= time_ago_in_words(@workflow_run.created_at) %> ago)
+    </p>
+  </div>
+  <div class="btn-group">
+    <span class="table__badge table__badge--<%= @workflow_run.status == 'completed' ? 'success' : 'danger' %>">
+      <%= @workflow_run.status.humanize %>
+    </span>
+  </div>
+</div>
+
+<div class="prompt-details">
+  <% if @workflow_run.status == 'failed' %>
+    <div class="alert alert--danger mb-lg">
+      <strong>Error:</strong> <%= @workflow_run.error_message %>
+    </div>
+  <% end %>
+
+  <!-- Run Information -->
+  <div class="card mb-lg">
+    <div class="card__header">
+      <h3 class="card__title">Run Information</h3>
+    </div>
+  <div class="card__body">
+    <div class="execution-summary">
+      <div class="execution-summary__item">
+        <span class="execution-summary__label">Workflow:</span>
+        <span class="execution-summary__value">
+          <%= link_to @workflow.name, workflow_path(@workflow) %>
+        </span>
+      </div>
+      <div class="execution-summary__item">
+        <span class="execution-summary__label">Execution Time:</span>
+        <span class="execution-summary__value"><%= number_with_precision(@workflow_run.execution_time, precision: 3) %>s</span>
+      </div>
+      <div class="execution-summary__item">
+        <span class="execution-summary__label">Status:</span>
+        <span class="execution-summary__value">
+          <span class="table__badge table__badge--<%= @workflow_run.status == 'completed' ? 'success' : 'danger' %>">
+            <%= @workflow_run.status.humanize %>
+          </span>
+        </span>
+      </div>
+    </div>
+    
+    <div class="form__group">
+      <label class="form__label">Title</label>
+      <div class="form__input-group">
+        <div class="form__static" id="title-display"><%= @workflow_run.title %></div>
+        <button type="button" class="btn btn--small btn--neutral" id="edit-title-btn"
+                onclick="document.getElementById('edit-title-form').style.display = 'block'; document.getElementById('title-display').style.display = 'none'; this.style.display = 'none';">
+          Edit Title
+        </button>
+      </div>
+      
+      <div id="edit-title-form" style="display: none;" class="mt-sm">
+        <%= form_with url: update_title_workflow_workflow_run_path(@workflow, @workflow_run), method: :patch, local: true, class: "form__inline" do %>
+          <input type="text" name="title" value="<%= @workflow_run.title %>" class="form__input" style="flex: 1;">
+          <button type="submit" class="btn btn--primary btn--small ml-xs">Save</button>
+          <button type="button" class="btn btn--neutral btn--small ml-xs" 
+                  onclick="document.getElementById('edit-title-form').style.display = 'none'; document.getElementById('title-display').style.display = 'block'; document.getElementById('edit-title-btn').style.display = 'inline-block';">
+            Cancel
+          </button>
+        <% end %>
+      </div>
+    </div>
+    
+    <% if @workflow_run.initial_input.present? %>
+      <div class="form__group">
+        <label class="form__label">Initial Input</label>
+        <div class="form__static">
+          <%= simple_format(@workflow_run.initial_input) %>
+        </div>
+      </div>
+    <% end %>
+    
+    <% if @workflow_run.input_variables.present? && @workflow_run.input_variables.any? %>
+      <div class="form__group">
+        <label class="form__label">Input Variables</label>
+        <div class="form__static">
+          <% @workflow_run.input_variables.each do |key, value| %>
+            <div><strong><%= key %>:</strong> <%= value %></div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<% if @workflow_run.status == 'completed' && @workflow_run.results.present? %>
+  <!-- Step-by-Step Results -->
+  <% if @workflow_run.results['steps'].present? %>
+    <div class="workflow-steps">
+      <% @workflow_run.results['steps'].each_with_index do |step_result, index| %>
+        <div class="card mb-lg workflow-step-card">
+          <div class="card__header workflow-step-header" data-toggle="collapse" data-target="#step-<%= index %>">
+            <h3 class="card__title">
+              Step <%= step_result['step'] %>: <%= step_result['prompt_slug'] %>
+              <% if step_result['execution_time'] %>
+                <span class="execution-time">(<%= number_with_precision(step_result['execution_time'], precision: 0) %>ms)</span>
+              <% end %>
+            </h3>
+            <button class="collapse-toggle" type="button">
+              <span class="collapse-icon">▼</span>
+            </button>
+          </div>
+          <div id="step-<%= index %>" class="card__body workflow-step-content collapse">
+            <div class="step-result">
+              <% if step_result['input'].present? %>
+                <div class="step-result__section">
+                  <h4 class="step-result__section-title">Input</h4>
+                  <div class="step-result__content step-result__content--input">
+                    <%= simple_format(step_result['input']) %>
+                  </div>
+                </div>
+              <% end %>
+
+              <% if step_result['input_parameters'].present? %>
+                <div class="step-result__section">
+                  <h4 class="step-result__section-title">Input Parameters</h4>
+                  <div class="step-result__content step-result__content--params">
+                    <pre class="json-pre"><%= JSON.pretty_generate(step_result['input_parameters'].deep_stringify_keys) rescue step_result['input_parameters'].to_s %></pre>
+                  </div>
+                </div>
+              <% end %>
+
+              <div class="step-result__section">
+                <h4 class="step-result__section-title">Output</h4>
+                <div class="step-result__content step-result__content--output">
+                  <%= simple_format(step_result['output']) %>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <% end %>
+      </div>
+    <% end %>
+
+    <!-- Final Result -->
+    <% if @workflow_run.results['final_output'].present? %>
+      <div class="card final-result-card">
+        <div class="card__header">
+          <h3 class="card__title">Final Workflow Result (Beta)</h3>
+        </div>
+        <div class="card__body">
+          <div class="final-result">
+            <%= simple_format(@workflow_run.results['final_output']) %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+<% end %>
+</div>
+
+<div class="form__actions mt-lg">
+  <%= link_to "Back to Workflow", workflow_path(@workflow), class: "btn btn--secondary btn--medium" %>
+  <%= link_to "All Runs", workflow_workflow_runs_path(@workflow), class: "btn btn--secondary btn--medium" %>
+  <%= link_to "Test Again", playground_workflow_path(@workflow), class: "btn btn--primary btn--medium" %>
+</div><script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize collapsible functionality
+  const headers = document.querySelectorAll('.workflow-step-header');
+  
+  headers.forEach(header => {
+    header.addEventListener('click', function() {
+      const targetId = this.getAttribute('data-target');
+      const content = document.querySelector(targetId);
+      const icon = this.querySelector('.collapse-icon');
+      
+      if (content.classList.contains('show')) {
+        // Collapse
+        content.classList.remove('show');
+        this.classList.remove('expanded');
+      } else {
+        // Expand
+        content.classList.add('show');
+        this.classList.add('expanded');
+      }
+    });
+  });
+});
+</script>

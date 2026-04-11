@@ -10,32 +10,41 @@
     <h3 class="card__title">Playground Settings</h3>
   </div>
   <div class="card__body">
-    <%= form_with url: playground_prompt_path(@prompt), method: :post, local: true, html: { class: "form" } do |form| %>
+    <%= form_with url: playground_prompt_path(@prompt), method: :post, local: true, html: { class: "form", multipart: true } do |form| %>
       <div class="form__group">
-        <%= form.label :provider, "AI Provider", class: "form__label form__label--required" %>
-        <% 
-          # Determine default provider based on prompt's model
-          default_provider = case @prompt.model
-                           when /claude/i, /anthropic/i
-                             "anthropic"
-                           when /gpt/i, /openai/i
-                             "openai"
-                           else
-                             nil
-                           end
-        %>
-        <%= form.select :provider,
-            options_for_select([
-              ["Anthropic (claude-3-5-sonnet-20241022)", "anthropic"],
-              ["OpenAI (gpt-4o)", "openai"]
-            ], default_provider),
-            { prompt: "Select a provider" },
-            class: "form__select", required: true %>
+        <label class="form__label">AI Configuration</label>
+        <div class="ai-config-display">
+          <div class="ai-config-item">
+            <strong>Provider:</strong> 
+            <span class="provider-badge provider-badge--<%= @provider %>">
+              <%= @provider&.capitalize || 'Not configured' %>
+            </span>
+          </div>
+          <div class="ai-config-item">
+            <strong>Model:</strong> 
+            <span class="model-name">
+              <% if @model_info %>
+                <%= @model_info[:name] %>
+                <code class="model-code"><%= @model_info[:value] %></code>
+              <% elsif @prompt.model.present? %>
+                <%= @prompt.model %>
+              <% else %>
+                <span class="text-muted">Not configured</span>
+              <% end %>
+            </span>
+          </div>
+          <% if @model_info&.dig(:description).present? %>
+            <div class="ai-config-item">
+              <strong>Description:</strong> 
+              <span class="model-description"><%= @model_info[:description] %></span>
+            </div>
+          <% end %>
+        </div>
         <div class="form__help">
           <% if @prompt.model.present? %>
-            Prompt is configured for <%= @prompt.model %>
+            This prompt is configured to use the <%= @provider&.capitalize %> provider with the <%= @model_info&.dig(:name) || @prompt.model %> model.
           <% else %>
-            Select which AI provider to test with
+            This prompt doesn't have a model configured. Please <%= link_to "edit the prompt", edit_prompt_path(@prompt), class: "link" %> to set a model.
           <% end %>
         </div>
       </div>
@@ -43,14 +52,14 @@
       <div class="form__group">
         <%= form.label :api_key, "API Key", class: "form__label form__label--required" %>
         <% 
-          # Get the appropriate API key based on selected provider
+          # Get the appropriate API key based on determined provider
           default_api_key = nil
           api_key_configured = false
           
-          if default_provider == "anthropic" && @settings.anthropic_configured?
+          if @provider == "anthropic" && @settings.anthropic_configured?
             default_api_key = @settings.anthropic_api_key
             api_key_configured = true
-          elsif default_provider == "openai" && @settings.openai_configured?
+          elsif @provider == "openai" && @settings.openai_configured?
             default_api_key = @settings.openai_api_key
             api_key_configured = true
           end
@@ -78,12 +87,21 @@
         <div class="form__help mb-md">Fill in the values for each parameter:</div>
         
         <% @parameters.each do |parameter_name| %>
+          <% parameter = @prompt.parameters.find_by(name: parameter_name) %>
           <div class="form__group">
             <%= form.label "parameters[#{parameter_name}]", parameter_name.humanize.titleize, class: "form__label" %>
-            <%= form.text_area "parameters[#{parameter_name}]", 
-                class: "form__textarea",
-                rows: 3,
-                placeholder: "Enter value for #{parameter_name}" %>
+            <% if parameter&.parameter_type == 'file' %>
+              <%= form.file_field "files[]", 
+                  class: "form__input",
+                  accept: ".pdf,.jpg,.jpeg,.png,.gif,.webp",
+                  multiple: false %>
+              <div class="form__help">Upload a file (PDF, JPG, PNG, GIF, WebP)</div>
+            <% else %>
+              <%= form.text_area "parameters[#{parameter_name}]", 
+                  class: "form__textarea",
+                  rows: 3,
+                  placeholder: "Enter value for #{parameter_name}" %>
+            <% end %>
           </div>
         <% end %>
       <% end %>
@@ -96,34 +114,71 @@
   </div>
 </div>
 
-<script>
-  // Update API key when provider changes
-  document.addEventListener('DOMContentLoaded', function() {
-    const providerSelect = document.getElementById('provider');
-    const apiKeyField = document.getElementById('api_key');
-    const helpText = apiKeyField.parentElement.querySelector('.form__help');
-    
-    if (providerSelect && apiKeyField) {
-      const anthropicKey = apiKeyField.dataset.anthropicKey;
-      const openaiKey = apiKeyField.dataset.openaiKey;
-      
-      providerSelect.addEventListener('change', function() {
-        const selectedProvider = this.value;
-        
-        if (selectedProvider === 'anthropic' && anthropicKey) {
-          apiKeyField.value = anthropicKey;
-          apiKeyField.placeholder = 'Using saved API key';
-          helpText.innerHTML = 'Using saved API key from settings. <a href="<%= edit_settings_path %>" class="link">Change in settings</a>';
-        } else if (selectedProvider === 'openai' && openaiKey) {
-          apiKeyField.value = openaiKey;
-          apiKeyField.placeholder = 'Using saved API key';
-          helpText.innerHTML = 'Using saved API key from settings. <a href="<%= edit_settings_path %>" class="link">Change in settings</a>';
-        } else {
-          apiKeyField.value = '';
-          apiKeyField.placeholder = 'Enter your API key';
-          helpText.innerHTML = 'Your API key will not be stored. <a href="<%= edit_settings_path %>" class="link">Save in settings</a>';
-        }
-      });
-    }
-  });
-</script>
+<style>
+  .ai-config-display {
+    background-color: var(--color-gray-50);
+    border: 1px solid var(--color-gray-200);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .ai-config-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  
+  .ai-config-item:last-child {
+    margin-bottom: 0;
+  }
+  
+  .ai-config-item strong {
+    min-width: 80px;
+    font-size: 0.875rem;
+    color: var(--color-gray-700);
+  }
+  
+  .provider-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+  }
+  
+  .provider-badge--anthropic {
+    background-color: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fbbf24;
+  }
+  
+  .provider-badge--openai {
+    background-color: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #3b82f6;
+  }
+  
+  .model-name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .model-code {
+    background-color: var(--color-gray-100);
+    color: var(--color-gray-600);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  }
+  
+  .model-description {
+    color: var(--color-gray-600);
+    font-size: 0.875rem;
+    font-style: italic;
+  }
+</style>

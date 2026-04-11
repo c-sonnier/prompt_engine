@@ -37,6 +37,26 @@
         </div>
 
         <div class="detail-item">
+          <label class="detail-label">Versions</label>
+          <div class="detail-value">
+            <div class="version-info">
+              <span class="version-count">
+                <%= pluralize(@prompt.version_count, 'version') %>
+              </span>
+              <% if @prompt.active_version %>
+                <div class="detail-value__secondary">
+                  Active: <%= link_to "v#{@prompt.active_version.version_number}", prompt_version_path(@prompt, @prompt.active_version), class: "table__link" %>
+                </div>
+              <% else %>
+                <div class="detail-value__secondary text-muted">
+                  No active version
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-item">
           <label class="detail-label">Slug</label>
           <div class="detail-value"><code><%= @prompt.slug %></code></div>
         </div>
@@ -98,6 +118,33 @@
     </div>
   <% end %>
 
+  <% if @prompt.selected_tools.any? %>
+    <div class="card mb-lg">
+      <div class="card__header">
+        <h3 class="card__title">Tools</h3>
+      </div>
+      <div class="card__body">
+        <div class="selected-tools">
+          <% @prompt.selected_tools.each do |tool| %>
+            <div class="tool-item">
+              <div class="tool-info">
+                <strong><%= tool[:name] %></strong>
+                <% if tool[:description].present? %>
+                  <span class="tool-description"><%= tool[:description] %></span>
+                <% end %>
+                <% if tool[:methods] && tool[:methods].any? %>
+                  <div class="tool-methods">
+                    <small class="text-muted">Methods: <%= tool[:methods].join(', ') %></small>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
   <div class="card mb-lg">
     <div class="card__header">
       <h3 class="card__title">Usage Example</h3>
@@ -118,14 +165,23 @@ rendered.model          # => "<%= @prompt.model || "gpt-4" %>"
 rendered.temperature    # => <%= @prompt.temperature || "0.7" %>
 rendered.max_tokens     # => <%= @prompt.max_tokens || "1000" %>
 
-# Direct integration with OpenAI
-client = OpenAI::Client.new(access_token: ENV["OPENAI_API_KEY"])
+# Option 1: Simple execution (recommended)
+result = PromptEngine.execute("<%= @prompt.slug %>"<% 
+  if @prompt.parameters.any?
+    @prompt.parameters.ordered.each_with_index do |param, index| %>,
+  <%= param.name %>: <%= param.example_value.presence || "\"value#{index + 1}\"" %><% end 
+  else %> # No variables needed<% end %>)
+
+# Option 2: Direct client integration
+# OpenAI
+client = OpenAI::Client.new(api_key: ENV["OPENAI_API_KEY"])
 response = rendered.execute_with(client)
 
-# Or use explicit parameters
-response = client.chat(parameters: rendered.to_openai_params)
+# Anthropic
+client = Anthropic::Client.new(api_key: ENV["ANTHROPIC_API_KEY"])
+response = rendered.execute_with(client)
 
-# With additional options (tools, functions, etc.)
+# Option 3: Advanced options
 response = rendered.execute_with(client,
   tools: [...],
   response_format: { type: "json_object" }
@@ -214,99 +270,99 @@ rendered = PromptEngine.render("<%= @prompt.slug %>"<%
     </div>
   </div>
 
-  <!--  <div class="card mb-lg">
+  <div class="card mb-lg">
     <div class="card__header">
       <h3 class="card__title">Evaluation Sets</h3>
       <div class="card__actions">
-        <%#= link_to "View All", prompt_eval_sets_path(@prompt), class: "btn btn--secondary btn--small" %>-->
-  <%#= link_to "New Evaluation Set", new_prompt_eval_set_path(@prompt), class: "btn btn--primary btn--small" %>
-  <!--      </div>
+        <%= link_to "View All", prompt_eval_sets_path(@prompt), class: "btn btn--secondary btn--small" %>
+        <%= link_to "New Evaluation Set", new_prompt_eval_set_path(@prompt), class: "btn btn--primary btn--small" %>
+      </div>
     </div>
     <div class="card__body">
-      <%# if @eval_sets.any? %>-->
-  <!--        <div class="eval-sets-summary mb-md">-->
-  <%# @eval_sets.each do |eval_set| %>
-    <!--            <div class="eval-set-summary-item">
+      <% if @eval_sets&.any? %>
+        <div class="eval-sets-summary mb-md">
+          <% @eval_sets.each do |eval_set| %>
+            <div class="eval-set-summary-item">
               <div class="eval-set-summary__header">
                 <h4 class="eval-set-summary__title">
-                  <%#= link_to eval_set.name, prompt_eval_set_path(@prompt, eval_set), class: "table__link" %>-->
-    <!--                </h4>
+                  <%= link_to eval_set.name, prompt_eval_set_path(@prompt, eval_set), class: "table__link" %>
+                </h4>
                 <div class="eval-set-summary__stats">
                   <span class="table__badge table__badge--secondary">
-                    <%#= pluralize(eval_set.test_cases.count, 'test') %>-->
-    <!--                  </span>-->
-    <%# if eval_set.eval_runs.any? %>
-    <!--                    <span class="table__badge table__badge--info">-->
-    <%#= pluralize(eval_set.eval_runs.count, 'run') %>
-    <!--                    </span>-->
-    <%# end %>
-    <!--                </div>
-              </div>
-              <%# if eval_set.description.present? %>-->
-    <!--                <p class="eval-set-summary__description"><%#= truncate(eval_set.description, length: 100) %></p>-->
-    <%# end %>
-    <%# latest_run = eval_set.eval_runs.order(created_at: :desc).first %>
-    <%# if latest_run && latest_run.status == 'completed' && latest_run.total_count > 0 %>
-    <!--                <div class="eval-set-summary__result">
-                  Latest run: 
-                  <%# success_rate = (latest_run.passed_count.to_f / latest_run.total_count * 100) %>-->
-    <!--                  <span class="<%#= success_rate >= 80 ? 'text-success' : success_rate >= 60 ? 'text-warning' : 'text-danger' %>">-->
-    <%#= number_to_percentage(success_rate, precision: 1) %> passed
-    <!--                  </span>
-                  <span class="text-muted">(<%#= time_ago_in_words(latest_run.created_at) %> ago)</span>
+                    <%= pluralize(eval_set.test_cases.count, 'test') %>
+                  </span>
+                  <% if eval_set.eval_runs.any? %>
+                    <span class="table__badge table__badge--info">
+                      <%= pluralize(eval_set.eval_runs.count, 'run') %>
+                    </span>
+                  <% end %>
                 </div>
-              <%# end %>-->
-    <!--            </div>-->
-    <%# end %>
-    <!--        </div>-->
-    <%# else %>
-    <!--        <p class="text-muted">No evaluation sets yet. <%#= link_to "Create an evaluation set", new_prompt_eval_set_path(@prompt) %> to start testing prompt variations.</p>-->
-    <%# end %>
-    <!---->
-    <%# if @recent_eval_runs.any? %>
-    <!--        <div class="mt-lg">
+              </div>
+              <% if eval_set.description.present? %>
+                <p class="eval-set-summary__description"><%= truncate(eval_set.description, length: 100) %></p>
+              <% end %>
+              <% latest_run = eval_set.eval_runs.order(created_at: :desc).first %>
+              <% if latest_run&.status == 'completed' && latest_run.total_count.to_i > 0 %>
+                <% success_rate = (latest_run.passed_count.to_f / latest_run.total_count * 100) %>
+                <div class="eval-set-summary__result">
+                  Latest run:
+                  <span class="<%= success_rate >= 80 ? 'text-success' : success_rate >= 60 ? 'text-warning' : 'text-danger' %>">
+                    <%= number_to_percentage(success_rate, precision: 1) %> passed
+                  </span>
+                  <span class="text-muted">(<%= time_ago_in_words(latest_run.created_at) %> ago)</span>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <p class="text-muted">No evaluation sets yet. <%= link_to "Create an evaluation set", new_prompt_eval_set_path(@prompt) %> to start testing prompt variations.</p>
+      <% end %>
+
+      <% if @recent_eval_runs&.any? %>
+        <div class="mt-lg">
           <h4 class="mb-md">Recent Evaluation Runs</h4>
           <div class="table-container table-container--compact">
             <table class="table table--simple">
               <tbody>
-                <%# @recent_eval_runs.each do |run| %>-->
-    <!--                  <tr>
+                <% @recent_eval_runs.each do |run| %>
+                  <tr>
                     <td>
-                      <div class="table__primary"><%#= run.created_at.strftime("%b %d, %Y %I:%M %p") %></div>
+                      <div class="table__primary"><%= run.created_at.strftime("%b %d, %Y %I:%M %p") %></div>
                     </td>
                     <td>
-                      <%#= link_to run.eval_set.name, prompt_eval_set_path(@prompt, run.eval_set), class: "table__link" %>-->
-    <!--                    </td>
-                    <td>
-                      <span class="table__badge table__badge--<%#= run.status %>">
-                        <%#= run.status.humanize %>-->
-    <!--                      </span>
+                      <%= link_to run.eval_set.name, prompt_eval_set_path(@prompt, run.eval_set), class: "table__link" %>
                     </td>
                     <td>
-                      <%# if run.status == 'completed' && run.total_count > 0 %>-->
-    <%# success_rate = (run.passed_count.to_f / run.total_count * 100) %>
-    <!--                        <span class="<%#= success_rate >= 80 ? 'text-success' : success_rate >= 60 ? 'text-warning' : 'text-danger' %>">-->
-    <%#= number_to_percentage(success_rate, precision: 1) %>
-    <!--                        </span>-->
-    <%# else %>
-    <!--                        <span class="text-muted">—</span>-->
-    <%# end %>
-    <!--                    </td>
+                      <span class="table__badge table__badge--<%= run.status %>">
+                        <%= run.status.humanize %>
+                      </span>
+                    </td>
                     <td>
-                      <%#= pluralize(run.total_count, 'test') %>-->
-    <!--                    </td>
+                      <% if run.status == 'completed' && run.total_count.to_i > 0 %>
+                        <% success_rate = (run.passed_count.to_f / run.total_count * 100) %>
+                        <span class="<%= success_rate >= 80 ? 'text-success' : success_rate >= 60 ? 'text-warning' : 'text-danger' %>">
+                          <%= number_to_percentage(success_rate, precision: 1) %>
+                        </span>
+                      <% else %>
+                        <span class="text-muted">—</span>
+                      <% end %>
+                    </td>
+                    <td>
+                      <%= pluralize(run.total_count, 'test') %>
+                    </td>
                     <td class="table__actions">
-                      <%#= link_to "View Details", prompt_eval_run_path(@prompt, run), class: "table__action" %>-->
-    <!--                    </td>
+                      <%= link_to "View Details", prompt_eval_run_path(@prompt, run), class: "table__action" %>
+                    </td>
                   </tr>
-                <%# end %>-->
-    <!--              </tbody>
+                <% end %>
+              </tbody>
             </table>
           </div>
         </div>
-      <%# end %>-->
-    <!--    </div>
-  </div>-->
+      <% end %>
+    </div>
+  </div>
   </div>
 
   <div class="form__actions mt-lg">
