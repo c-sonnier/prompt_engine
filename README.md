@@ -326,6 +326,72 @@ end
 - `to_ruby_llm_params`: Convert to RubyLLM/Anthropic format
 - `execute_with(client)`: Execute with an LLM client
 
+### Tool Integration
+
+PromptEngine integrates with [RubyLLM](https://github.com/crmne/ruby_llm) tools, letting your prompts call external functions during execution — like fetching data, querying APIs, or performing calculations.
+
+For example, a "customer support" prompt on its own can only generate generic responses. But attach an `OrderLookupTool` and it can pull real order data during the conversation:
+
+```ruby
+# Without tools:
+"I'm sorry to hear you're having trouble with your order. Could you provide your order number?"
+
+# With OrderLookupTool attached:
+"I found your order #4521. It shipped on April 8th via FedEx and is currently 
+in transit to Austin, TX. Expected delivery is tomorrow by 5pm."
+```
+
+The prompt stays the same — the tool gives it access to live data.
+
+#### Creating a Tool
+
+Define a tool by inheriting from `RubyLLM::Tool` and place it in `app/tools/`:
+
+```ruby
+# app/tools/weather_tool.rb
+class WeatherTool < RubyLLM::Tool
+  description "Gets current weather for a location"
+  param :latitude, desc: "Latitude (e.g., 52.5200)"
+  param :longitude, desc: "Longitude (e.g., 13.4050)"
+
+  def execute(latitude:, longitude:)
+    url = "https://api.open-meteo.com/v1/forecast?latitude=#{latitude}&longitude=#{longitude}&current=temperature_2m"
+    response = Faraday.get(url)
+    JSON.parse(response.body)
+  rescue => e
+    { error: e.message }
+  end
+end
+```
+
+#### Auto-Discovery
+
+PromptEngine automatically discovers tools from:
+- `app/tools/` (recommended)
+- `lib/tools/`
+- Any class that includes or inherits from `RubyLLM::Tool`
+
+No registration step needed — just define the class and it appears in the admin UI.
+
+#### Attaching Tools to Prompts
+
+In the admin UI, edit any prompt and select tools from the "Tools" section. Selected tools are versioned alongside your prompt content, so rolling back a version also rolls back the tool configuration.
+
+Programmatically:
+
+```ruby
+prompt = PromptEngine::Prompt.find_by(slug: "research-assistant")
+prompt.add_tool("WeatherTool")
+prompt.add_tool("SearchTool")
+prompt.save!
+
+# Check what's attached
+prompt.selected_tools    # => [{name: "WeatherTool", description: "...", ...}]
+prompt.has_tool?("WeatherTool")  # => true
+```
+
+When the prompt is executed via the playground or `PromptEngine.execute`, the attached tools are automatically available to the LLM.
+
 ### JSON Mode (Structured Output)
 
 Enable a prompt-level toggle that requests structured JSON output from providers that support RubyLLM's `response_format` option (e.g., OpenAI). When `json_mode` is enabled on a prompt, `RenderedPrompt#to_ruby_llm_params` automatically includes:
@@ -350,6 +416,10 @@ rendered.to_ruby_llm_params(response_format: { type: 'json_schema', schema: my_s
 ```
 
 Disable by unchecking the JSON Mode checkbox in the UI or setting `json_mode: false`.
+
+### Workflows (Beta)
+
+Workflows let you chain multiple prompts together into multi-step pipelines — where the output of one prompt feeds into the next. Create, test, and manage workflows through the admin UI. This feature is in beta.
 
 ## Contributing
 
@@ -429,8 +499,8 @@ We welcome contributions! Here's how you can help:
 
 PromptEngine follows Rails engine conventions with a modular architecture:
 
-- **Models**: Prompt, PromptVersion, Parameter, EvalSet, TestCase
-- **Services**: VariableDetector, PlaygroundExecutor, PromptRenderer
+- **Models**: Prompt, PromptVersion, Parameter, Workflow, WorkflowRun, EvalSet, TestCase
+- **Services**: VariableDetector, PlaygroundExecutor, ToolDiscoveryService, WorkflowEngine
 - **Admin UI**: Built with Hotwire, Stimulus, and Turbo
 - **API**: Object-oriented design with RenderedPrompt instances
 
